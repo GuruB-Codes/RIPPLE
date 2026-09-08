@@ -2,6 +2,25 @@
 // REPLACE THIS URL WITH YOUR GOOGLE APPS SCRIPT WEB APP URL
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhz5r6NEYTTyUt9760qtbgO6ikehapi5ltSdU3mfVtoUXQTYUGNIzanJKABSHTNrAQ/exec';
 
+// --- CONSTANTS & MONTH MAPPINGS ---
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_MAP = {
+    jan: 0, january: 0,
+    feb: 1, february: 1,
+    mar: 2, march: 2,
+    apr: 3, april: 3,
+    may: 4,
+    jun: 5, june: 5,
+    jul: 6, july: 6,
+    aug: 7, august: 7,
+    sep: 8, sept: 8, september: 8,
+    oct: 9, october: 9,
+    nov: 10, november: 10,
+    dec: 11, december: 11
+};
+const CACHE_TRANSACTIONS_KEY = 'ripple_cached_transactions';
+let lastFetchTimestamp = 0;
+
 // --- STATE MANAGEMENT ---
 let transactions = [];
 let categoryPieChart = null;
@@ -41,6 +60,7 @@ const analyticsTimeFilter = document.getElementById('analytics-time-filter');
 const analyticsTabs = document.querySelectorAll('.analytics-tab');
 const analyticsChartContainer = document.getElementById('analytics-chart-container');
 const analyticsEmptyState = document.getElementById('analytics-empty-state');
+
 // Settings Elements
 const profileName = document.getElementById('profile-name');
 const profilePhone = document.getElementById('profile-phone');
@@ -53,24 +73,32 @@ const reminderTime = document.getElementById('reminder-time');
 const themeToggle = document.getElementById('theme-toggle');
 
 let reminderInterval = null;
+
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Set default date to today
-    dateInput.valueAsDate = new Date();
+    // Set default date to today in local format (YYYY-MM-DD)
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    dateInput.value = `${yyyy}-${mm}-${dd}`;
     
-    // Set default month filters to current month
-    const currentMonthStr = new Date().toISOString().slice(0, 7);
-    historyMonthFilter.value = currentMonthStr;
+    // Set default month filter to current month (YYYY-MM)
+    historyMonthFilter.value = `${yyyy}-${mm}`;
 
-    // Event Listeners
+    // Setup event listeners
     setupNavigation();
     setupFormToggle();
     setupFormSubmission();
     setupFilters();
     setupSettings();
+    setupMobileLifecycle();
 
-    // Fetch initial data quietly without loader
-    fetchTransactions(false);
+    // 1. Immediately show cached data if available (zero-latency load on mobile PWA)
+    const hasCachedData = loadCachedTransactions();
+
+    // 2. Fetch fresh transactions from Google Sheets in background
+    fetchTransactions(!hasCachedData);
 });
 
 // --- NAVIGATION ---
@@ -92,11 +120,13 @@ function setupNavigation() {
 function navigateTo(viewId) {
     // Update Nav
     navItems.forEach(nav => nav.classList.remove('active'));
-    document.querySelector(`.nav-item[data-target="${viewId}"]`).classList.add('active');
+    const activeNav = document.querySelector(`.nav-item[data-target="${viewId}"]`);
+    if (activeNav) activeNav.classList.add('active');
 
     // Update Views
     views.forEach(view => view.classList.remove('active'));
-    document.getElementById(`view-${viewId}`).classList.add('active');
+    const activeView = document.getElementById(`view-${viewId}`);
+    if (activeView) activeView.classList.add('active');
 
     // View specific updates
     if (viewId === 'dashboard') {
@@ -122,12 +152,10 @@ function setupFormToggle() {
             if (e.target.value === 'Income') {
                 expenseCategories.style.display = 'none';
                 incomeCategories.style.display = 'block';
-                // Select first income option
                 categorySelect.value = incomeCategories.querySelector('option').value;
             } else {
                 expenseCategories.style.display = 'block';
                 incomeCategories.style.display = 'none';
-                // Select first expense option
                 categorySelect.value = expenseCategories.querySelector('option').value;
             }
         });
@@ -140,12 +168,13 @@ function setupFormSubmission() {
 
         // --- VALIDATION ---
         const formData = new FormData(addForm);
-        const amount = formData.get('amount');
+        const rawAmount = formData.get('amount');
         const category = formData.get('category');
         const type = formData.get('type');
         const dateVal = formData.get('date');
 
-        if (!amount || parseFloat(amount) <= 0) {
+        const parsedAmount = parseAmount(rawAmount);
+        if (parsedAmount <= 0) {
             showToast('⚠️ Please enter a valid amount.');
             return;
         }
@@ -162,16 +191,17 @@ function setupFormSubmission() {
             return;
         }
 
-        // Format date to DD-MMM-YYYY for consistency
-        const d = new Date(dateVal);
-        const dateStr = `${String(d.getDate()).padStart(2, '0')}-${d.toLocaleString('default', { month: 'short' })}-${d.getFullYear()}`;
+        // Format date to standard DD-MMM-YYYY with English month (e.g. 08-Sep-2026)
+        // Date input is guaranteed YYYY-MM-DD
+        const [y, m, d] = dateVal.split('-').map(Number);
+        const dateStr = `${String(d).padStart(2, '0')}-${MONTH_NAMES[m - 1]}-${y}`;
 
         const transactionData = {
             date: dateStr,
             category: category,
-            amount: amount,
+            amount: parsedAmount,
             type: type,
-            notes: formData.get('notes') || ''
+            notes: (formData.get('notes') || '').trim()
         };
 
         // Disable submit button to prevent double-clicks
@@ -182,10 +212,13 @@ function setupFormSubmission() {
         try {
             await saveTransactionToCloud(transactionData);
             addForm.reset();
-            dateInput.valueAsDate = new Date();
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            dateInput.value = `${yyyy}-${mm}-${dd}`;
             document.getElementById('type-expense').click();
         } catch (err) {
-            // Error already handled in saveTransactionToCloud
             debugLog('Form submission error', err);
         } finally {
             submitBtn.disabled = false;
@@ -195,7 +228,7 @@ function setupFormSubmission() {
 }
 
 // --- DEBUG / DEVELOPMENT MODE ---
-const DEBUG_MODE = true; // Set to false for production
+const DEBUG_MODE = true;
 
 function debugLog(label, ...args) {
     if (DEBUG_MODE) {
@@ -203,37 +236,131 @@ function debugLog(label, ...args) {
     }
 }
 
-// Helper: format any date string to dd-MMM-yyyy
-function formatDateDisplay(dateStr) {
-    if (!dateStr) return '';
-    // Already in target format?
-    if (/^\d{2}-[A-Za-z]{3}-\d{4}$/.test(dateStr)) {
-        // Ensure month is capitalized for display
-        const parts = dateStr.split('-');
-        parts[1] = parts[1].charAt(0).toUpperCase() + parts[1].slice(1).toLowerCase();
-        return parts.join('-');
-    }
-    // Try ISO format or standard date parsing
-    let d = new Date(dateStr);
-    if (!isNaN(d)) {
-        return `${String(d.getDate()).padStart(2, '0')}-${d.toLocaleString('default', { month: 'short' })}-${d.getFullYear()}`;
-    }
-    // Fallback: handle dd-MM-yyyy (numeric month)
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-        const day = parts[0];
-        const monthNum = parseInt(parts[1], 10);
-        const year = parts[2];
-        const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        const monthName = monthNames[monthNum - 1] || '';
-        if (monthName) {
-            return `${day}-${monthName}-${year}`;
-        }
-    }
-    // Return original if all else fails
-    return dateStr;
+// --- ROBUST NUMBER & DATE UTILITIES ---
+
+// Safe amount parser that handles numbers, currency symbols, commas, and strings
+function parseAmount(val) {
+    if (typeof val === 'number') return isNaN(val) ? 0 : val;
+    if (!val) return 0;
+    const cleaned = String(val).replace(/[^\d.-]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
 }
 
+// Locale-independent robust date parser
+function parseDate(val) {
+    if (!val) return null;
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    if (typeof val === 'number') {
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? null : d;
+    }
+    const s = String(val).trim();
+
+    // 1. Match dd-MMM-yyyy or dd MMM yyyy (e.g. 08-sep-2026, 08-Sept-2026, 8-Sep-2026)
+    const textMatch = s.match(/^(\d{1,2})[-/\s]([A-Za-z]+)[-/\s](\d{4})/);
+    if (textMatch) {
+        const day = parseInt(textMatch[1], 10);
+        const mKey = textMatch[2].toLowerCase();
+        const year = parseInt(textMatch[3], 10);
+        if (MONTH_MAP[mKey] !== undefined) {
+            return new Date(year, MONTH_MAP[mKey], day);
+        }
+    }
+
+    // 2. Match yyyy-mm-dd (ISO date format)
+    const isoMatch = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (isoMatch) {
+        return new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
+    }
+
+    // 3. Match dd-mm-yyyy or dd/mm/yyyy
+    const dmyMatch = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (dmyMatch) {
+        return new Date(parseInt(dmyMatch[3], 10), parseInt(dmyMatch[2], 10) - 1, parseInt(dmyMatch[1], 10));
+    }
+
+    // Fallback standard Date parser
+    const fallback = new Date(s);
+    return isNaN(fallback.getTime()) ? null : fallback;
+}
+
+// Format any date string to standard display format: DD-MMM-YYYY (e.g. 08-Sep-2026)
+function formatDateDisplay(dateStr) {
+    const d = parseDate(dateStr);
+    if (!d) return dateStr || '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = MONTH_NAMES[d.getMonth()];
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+}
+
+// Sort transactions descending by date
+function sortTransactions() {
+    transactions.sort((a, b) => {
+        const da = parseDate(a.Date);
+        const db = parseDate(b.Date);
+        return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+    });
+}
+
+// --- LOCAL PERSISTENCE & LIFECYCLE ---
+
+function saveTransactionsToCache() {
+    try {
+        localStorage.setItem(CACHE_TRANSACTIONS_KEY, JSON.stringify(transactions));
+    } catch (e) {
+        console.warn('[RIPPLE] Failed to save transactions to localStorage:', e);
+    }
+}
+
+function loadCachedTransactions() {
+    try {
+        const cached = localStorage.getItem(CACHE_TRANSACTIONS_KEY);
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                transactions = parsed.map(t => ({
+                    rowId: t.rowId,
+                    Date: formatDateDisplay(t.Date),
+                    Category: t.Category || '',
+                    Amount: parseAmount(t.Amount),
+                    Type: t.Type || '',
+                    Notes: t.Notes || ''
+                }));
+                sortTransactions();
+                updateDashboard();
+                renderHistoryTable();
+                updateAnalytics();
+                debugLog('Loaded cached transactions from localStorage', transactions.length);
+                return true;
+            }
+        }
+    } catch (e) {
+        console.warn('[RIPPLE] Failed to load transactions from localStorage:', e);
+    }
+    return false;
+}
+
+function setupMobileLifecycle() {
+    // Refresh when returning to the PWA after backgrounding (throttled 30s)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            const now = Date.now();
+            if (now - lastFetchTimestamp > 30000) {
+                debugLog('PWA resumed, quietly refreshing transactions...');
+                fetchTransactions(false);
+            }
+        }
+    });
+
+    // Sync when device reconnects to internet
+    window.addEventListener('online', () => {
+        debugLog('Device back online, syncing...');
+        showToast('🌐 Back online. Syncing data...');
+        fetchTransactions(false);
+    });
+}
 
 // --- DATA FETCHING & SAVING ---
 
@@ -260,6 +387,7 @@ async function fetchTransactions(showLoading = true) {
         }
 
         const response = await fetch(SCRIPT_URL);
+        lastFetchTimestamp = Date.now();
         debugLog('GET response status', response.status);
 
         if (!response.ok) {
@@ -267,46 +395,39 @@ async function fetchTransactions(showLoading = true) {
         }
 
         const data = await response.json();
-        debugLog('GET response data', data);
+        debugLog('GET response data count', data.data ? data.data.length : 0);
 
         if (Array.isArray(data) || data.status === 'success' || data.success === true || Array.isArray(data.data)) {
             const rawTransactions = Array.isArray(data) ? data : (data.data || []);
             
             transactions = rawTransactions.map(t => {
-                let formattedDate = t.Date || '';
-                // If it's an ISO string from Google Sheets (e.g. 2026-06-21T...), format it to DD-MMM-YYYY
-                if (formattedDate.includes('T')) {
-                    const d = new Date(formattedDate);
-                    formattedDate = `${String(d.getDate()).padStart(2, '0')}-${d.toLocaleString('default', { month: 'short' })}-${d.getFullYear()}`;
-                }
                 return {
-                    rowId: t.rowId, // Include Google Sheets row index for deletion
-                    Date: formattedDate,
+                    rowId: t.rowId, // Google Sheets row index
+                    Date: formatDateDisplay(t.Date),
                     Category: t.Category || '',
-                    Amount: parseFloat(t.Amount) || 0,
+                    Amount: parseAmount(t.Amount),
                     Type: t.Type || '',
                     Notes: t.Notes || ''
                 };
             });
 
-            // Ensure transactions are sorted by date descending
-            transactions.sort((a, b) => new Date(b.Date) - new Date(a.Date));
+            sortTransactions();
+            saveTransactionsToCache();
             
-            console.log('--- RIPPLE SYNC ---');
-            console.log(transactions);
+            debugLog('Transactions synced', transactions.length);
             
             updateDashboard();
             renderHistoryTable();
             updateAnalytics();
-            
-            debugLog('Transactions loaded', transactions.length);
         } else {
             console.error('[RIPPLE] API error:', data.message);
             showToast('⚠️ Error from server: ' + (data.message || 'Unknown error'));
         }
     } catch (error) {
         console.error('[RIPPLE] Fetch error:', error);
-        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        if (transactions.length > 0) {
+            showToast('⚠️ Unable to sync. Showing last available data.');
+        } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
             showToast('❌ Network error. Check your internet connection.');
         } else if (error.message.includes('403')) {
             showToast('❌ Permission denied. Redeploy your Apps Script with "Anyone" access.');
@@ -327,34 +448,37 @@ async function saveTransactionToCloud(transaction) {
         return;
     }
 
+    const txAmount = parseAmount(transaction.amount);
+    const normalizedDate = formatDateDisplay(transaction.date);
+
     // --- OPTIMISTIC UI UPDATE ---
     const existingTx = transactions.find(t => 
-        t.Date.toLowerCase() === transaction.date.toLowerCase() && 
-        t.Category.toLowerCase() === transaction.category.toLowerCase() && 
-        t.Type.toLowerCase() === transaction.type.toLowerCase()
+        formatDateDisplay(t.Date).toLowerCase() === normalizedDate.toLowerCase() && 
+        String(t.Category || '').trim().toLowerCase() === String(transaction.category || '').trim().toLowerCase() && 
+        String(t.Type || '').trim().toLowerCase() === String(transaction.type || '').trim().toLowerCase()
     );
 
     if (existingTx) {
-        existingTx.Amount += parseFloat(transaction.amount);
+        existingTx.Amount = parseAmount(existingTx.Amount) + txAmount;
     } else {
         transactions.unshift({
-            rowId: Date.now(), // Fake rowId until sync
-            Date: transaction.date,
+            rowId: 'temp_' + Date.now(),
+            Date: normalizedDate,
             Category: transaction.category,
-            Amount: parseFloat(transaction.amount),
+            Amount: txAmount,
             Type: transaction.type,
-            Notes: transaction.notes
+            Notes: transaction.notes || ''
         });
-        // re-sort
-        transactions.sort((a, b) => new Date(b.Date) - new Date(a.Date));
+        sortTransactions();
     }
 
+    saveTransactionsToCache();
     updateDashboard();
     renderHistoryTable();
     updateAnalytics();
     showToast('✅ Transaction saved! Syncing...');
 
-    // Background sync
+    // Background sync to Google Apps Script
     fetch(SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
@@ -363,8 +487,11 @@ async function saveTransactionToCloud(transaction) {
         },
         body: JSON.stringify(transaction)
     }).then(() => {
-        debugLog('Background save complete. Re-fetching quietly...');
-        fetchTransactions(false); // quiet fetch to get real rowIds and sync
+        debugLog('Background save complete. Waiting for Google Sheet to commit row...');
+        // Allow Google Sheets 1200ms to persist row before re-fetching quietly
+        setTimeout(() => {
+            fetchTransactions(false);
+        }, 1200);
     }).catch(err => {
         console.error('Background save error:', err);
         showToast('⚠️ Sync issue, data might not be saved to cloud.');
@@ -372,7 +499,6 @@ async function saveTransactionToCloud(transaction) {
 }
 
 // --- CONNECTION TEST TOOL (Developer Use) ---
-// Call from browser console: testGoogleSheetsConnection()
 async function testGoogleSheetsConnection() {
     console.log('=== RIPPLE: Google Sheets Connection Test ===');
     console.log('API URL:', SCRIPT_URL);
@@ -425,7 +551,6 @@ async function testGoogleSheetsConnection() {
     console.log('Remember to delete the test row (01-Jan-2000 / TEST / 0.01) from your Google Sheet.');
 }
 
-// Make test function globally accessible from console
 window.testGoogleSheetsConnection = testGoogleSheetsConnection;
 
 async function deleteTransaction(index) {
@@ -440,6 +565,7 @@ async function deleteTransaction(index) {
 
     // --- OPTIMISTIC UI UPDATE ---
     transactions.splice(index, 1);
+    saveTransactionsToCache();
     updateDashboard();
     renderHistoryTable();
     updateAnalytics();
@@ -459,33 +585,40 @@ async function deleteTransaction(index) {
         },
         body: JSON.stringify(payload)
     }).then(() => {
-        debugLog('Background delete complete.');
-        fetchTransactions(false); // quiet sync
+        debugLog('Background delete complete. Waiting for Google Sheet to commit...');
+        setTimeout(() => {
+            fetchTransactions(false);
+        }, 1200);
     }).catch(err => {
         console.error('Delete error:', err);
         showToast('⚠️ Sync issue, data might not be deleted from cloud.');
     });
 }
 
-// Make delete global
 window.deleteTransaction = deleteTransaction;
 
-
 // --- DASHBOARD CALCULATIONS & CHARTS ---
+
+// Locale-independent current month filter
 function getCurrentMonthData() {
     const now = new Date();
-    const currentMonthStr = `${now.toLocaleString('default', { month: 'short' })}-${now.getFullYear()}`.toLowerCase();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-indexed
 
-    return transactions.filter(t => t.Date.toLowerCase().includes(currentMonthStr));
+    return transactions.filter(t => {
+        const d = parseDate(t.Date);
+        return d && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    });
 }
 
 function calculateSummaries(filteredTransactions) {
     let income = 0;
     let expense = 0;
 
-    filteredTransactions.forEach(t => {
-        if (t.Type === 'Income') income += t.Amount;
-        if (t.Type === 'Expense') expense += t.Amount;
+    (filteredTransactions || []).forEach(t => {
+        const amt = parseAmount(t.Amount);
+        if (t.Type === 'Income') income += amt;
+        if (t.Type === 'Expense') expense += amt;
     });
 
     return { income, expense, savings: income - expense };
@@ -495,9 +628,7 @@ function updateDashboard() {
     const currentMonthData = getCurrentMonthData();
     const { income, expense, savings } = calculateSummaries(currentMonthData);
 
-    console.log("Income:", income);
-    console.log("Expenses:", expense);
-    console.log("Savings:", savings);
+    debugLog('Dashboard calculated', { income, expense, savings, count: currentMonthData.length });
 
     // Update UI
     monthlyIncomeEl.textContent = `₹${income.toLocaleString('en-IN')}`;
@@ -529,7 +660,7 @@ function updateDashboard() {
                         </div>
                     </div>
                     <div class="${colorClass}" style="font-weight:600;">
-                        ${sign}₹${t.Amount.toLocaleString('en-IN')}
+                        ${sign}₹${parseAmount(t.Amount).toLocaleString('en-IN')}
                     </div>
                 </div>
             `;
@@ -537,15 +668,14 @@ function updateDashboard() {
         });
     }
 
-
     // Update Charts
     updateDashboardCharts(currentMonthData);
 }
 
 function getCategoryData(data, type) {
     const categoryTotals = {};
-    data.filter(t => t.Type === type).forEach(t => {
-        categoryTotals[t.Category] = (categoryTotals[t.Category] || 0) + t.Amount;
+    (data || []).filter(t => t.Type === type).forEach(t => {
+        categoryTotals[t.Category] = (categoryTotals[t.Category] || 0) + parseAmount(t.Amount);
     });
     return {
         labels: Object.keys(categoryTotals),
@@ -562,7 +692,9 @@ function updateDashboardCharts(currentMonthData) {
     // 1. Pie Chart - Expenses by Category
     const expenseData = getCategoryData(currentMonthData, 'Expense');
 
-    const pieCtx = document.getElementById('categoryPieChart').getContext('2d');
+    const pieCanvas = document.getElementById('categoryPieChart');
+    if (!pieCanvas) return;
+    const pieCtx = pieCanvas.getContext('2d');
     if (categoryPieChart) categoryPieChart.destroy();
 
     categoryPieChart = new Chart(pieCtx, {
@@ -588,7 +720,9 @@ function updateDashboardCharts(currentMonthData) {
     // 2. Bar Chart - Income vs Expense
     const { income, expense } = calculateSummaries(currentMonthData);
 
-    const barCtx = document.getElementById('incomeExpenseBarChart').getContext('2d');
+    const barCanvas = document.getElementById('incomeExpenseBarChart');
+    if (!barCanvas) return;
+    const barCtx = barCanvas.getContext('2d');
     if (incomeExpenseBarChart) incomeExpenseBarChart.destroy();
 
     incomeExpenseBarChart = new Chart(barCtx, {
@@ -635,18 +769,30 @@ function setupFilters() {
 }
 
 function filterTransactions() {
-    const searchTerm = searchHistoryInput.value.toLowerCase();
+    const searchTerm = (searchHistoryInput.value || '').trim().toLowerCase();
     const monthFilter = historyMonthFilter.value; // Format: YYYY-MM
 
-    let monthStr = '';
+    let filterYear = null;
+    let filterMonth = null;
     if (monthFilter) {
-        const d = new Date(`${monthFilter}-01`);
-        monthStr = `${d.toLocaleString('default', { month: 'short' })}-${d.getFullYear()}`.toLowerCase();
+        const parts = monthFilter.split('-').map(Number);
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+            filterYear = parts[0];
+            filterMonth = parts[1] - 1; // 0-indexed month
+        }
     }
 
     return transactions.filter(t => {
-        const matchesSearch = t.Notes.toLowerCase().includes(searchTerm) || t.Category.toLowerCase().includes(searchTerm);
-        const matchesMonth = monthFilter ? t.Date.toLowerCase().includes(monthStr) : true;
+        const notesMatch = t.Notes && t.Notes.toLowerCase().includes(searchTerm);
+        const categoryMatch = t.Category && t.Category.toLowerCase().includes(searchTerm);
+        const matchesSearch = !searchTerm || notesMatch || categoryMatch;
+
+        let matchesMonth = true;
+        if (filterYear !== null && filterMonth !== null) {
+            const d = parseDate(t.Date);
+            matchesMonth = d && d.getFullYear() === filterYear && d.getMonth() === filterMonth;
+        }
+
         return matchesSearch && matchesMonth;
     });
 }
@@ -664,8 +810,7 @@ function renderHistoryTable() {
     tableResponsive.classList.remove('hidden');
     noHistoryMsg.classList.add('hidden');
 
-    filtered.forEach((t, index) => {
-        // Find real index in original array for deletion
+    filtered.forEach((t) => {
         const realIndex = transactions.indexOf(t);
 
         const isExpense = t.Type === 'Expense';
@@ -678,7 +823,7 @@ function renderHistoryTable() {
             <td><span class="category-badge">${t.Category}</span></td>
             <td style="color:var(--text-muted); font-size:0.85rem;">${t.Notes || '-'}</td>
             <td class="text-right ${colorClass}">
-                ${sign}₹${t.Amount.toLocaleString('en-IN')}
+                ${sign}₹${parseAmount(t.Amount).toLocaleString('en-IN')}
                 <button class="action-btn" onclick="deleteTransaction(${realIndex})" title="Delete"><i class="fa-solid fa-trash"></i></button>
             </td>
         `;
@@ -706,7 +851,6 @@ function updateAnalytics() {
         labels.push('Week 1', 'Week 2', 'Week 3', 'Current Week');
 
         for (let i = 3; i >= 0; i--) {
-            // week i ranges from today - (i*7 + 6) to today - (i*7)
             const endOffset = i * 7;
             const startOffset = i * 7 + 6;
 
@@ -718,35 +862,35 @@ function updateAnalytics() {
 
             let sum = 0;
             relevantTx.forEach(t => {
-                const d = new Date(t.Date);
+                const d = parseDate(t.Date);
+                if (!d) return;
                 d.setHours(0, 0, 0, 0);
                 if (d >= startDate && d <= endDate) {
-                    sum += t.Amount;
+                    sum += parseAmount(t.Amount);
                 }
             });
             dataPoints.push(sum);
             if (sum > 0) hasData = true;
         }
-        console.log(`Analytics totals (${timeFilter} ${txType}):`, dataPoints);
+        debugLog(`Analytics totals (${timeFilter} ${txType}):`, dataPoints);
     } else {
         // Last 4 months (including current)
-        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
         for (let i = 3; i >= 0; i--) {
             const targetMonth = new Date(today.getFullYear(), today.getMonth() - i, 1);
-            labels.push(monthNames[targetMonth.getMonth()]);
+            labels.push(MONTH_NAMES[targetMonth.getMonth()]);
 
             let sum = 0;
             relevantTx.forEach(t => {
-                const d = new Date(t.Date);
+                const d = parseDate(t.Date);
+                if (!d) return;
                 if (d.getMonth() === targetMonth.getMonth() && d.getFullYear() === targetMonth.getFullYear()) {
-                    sum += t.Amount;
+                    sum += parseAmount(t.Amount);
                 }
             });
             dataPoints.push(sum);
             if (sum > 0) hasData = true;
         }
-        console.log(`Analytics totals (${timeFilter} ${txType}):`, dataPoints);
+        debugLog(`Analytics totals (${timeFilter} ${txType}):`, dataPoints);
     }
 
     if (!hasData) {
@@ -759,7 +903,9 @@ function updateAnalytics() {
     analyticsEmptyState.classList.add('hidden');
     analyticsChartContainer.classList.remove('hidden');
 
-    const ctx = document.getElementById('analyticsLineChart').getContext('2d');
+    const canvas = document.getElementById('analyticsLineChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
     if (analyticsLineChart) analyticsLineChart.destroy();
 
     const color = txType === 'Expense' ? '#EF4444' : '#10B981';
@@ -774,7 +920,7 @@ function updateAnalytics() {
                 borderColor: color,
                 backgroundColor: color + '33', // 20% opacity
                 borderWidth: 3,
-                tension: 0.4, // smooth curve
+                tension: 0.4,
                 fill: true,
                 pointBackgroundColor: color,
                 pointRadius: 4,
@@ -802,17 +948,17 @@ function updateAnalytics() {
     });
 }
 
-
 // --- UTILS ---
 function showLoader() {
-    loader.classList.remove('hidden');
+    if (loader) loader.classList.remove('hidden');
 }
 
 function hideLoader() {
-    loader.classList.add('hidden');
+    if (loader) loader.classList.add('hidden');
 }
 
 function showToast(message) {
+    if (!toast) return;
     toast.textContent = message;
     toast.classList.remove('hidden');
     setTimeout(() => {
@@ -826,7 +972,8 @@ function openSettingsSub(subId) {
     document.querySelectorAll('.settings-subview').forEach(view => {
         view.classList.add('hidden');
     });
-    document.getElementById(`settings-sub-${subId}`).classList.remove('hidden');
+    const targetSub = document.getElementById(`settings-sub-${subId}`);
+    if (targetSub) targetSub.classList.remove('hidden');
 }
 
 function closeSettingsSub() {
@@ -836,81 +983,86 @@ function closeSettingsSub() {
     });
 }
 
-// Make globally available for inline onclick
 window.openSettingsSub = openSettingsSub;
 window.closeSettingsSub = closeSettingsSub;
 
 function setupSettings() {
     // 1. Profile
     const savedProfile = JSON.parse(localStorage.getItem('expense_tracker_profile')) || {};
-    if (savedProfile.name) profileName.value = savedProfile.name;
-    if (savedProfile.phone) profilePhone.value = savedProfile.phone;
-    if (savedProfile.email) profileEmail.value = savedProfile.email;
-    if (savedProfile.occupation) profileOccupation.value = savedProfile.occupation;
+    if (savedProfile.name && profileName) profileName.value = savedProfile.name;
+    if (savedProfile.phone && profilePhone) profilePhone.value = savedProfile.phone;
+    if (savedProfile.email && profileEmail) profileEmail.value = savedProfile.email;
+    if (savedProfile.occupation && profileOccupation) profileOccupation.value = savedProfile.occupation;
 
-    saveProfileBtn.addEventListener('click', () => {
-        const profileData = {
-            name: profileName.value,
-            phone: profilePhone.value,
-            email: profileEmail.value,
-            occupation: profileOccupation.value
-        };
-        localStorage.setItem('expense_tracker_profile', JSON.stringify(profileData));
-        showToast('Profile saved successfully!');
-    });
+    if (saveProfileBtn) {
+        saveProfileBtn.addEventListener('click', () => {
+            const profileData = {
+                name: profileName.value,
+                phone: profilePhone.value,
+                email: profileEmail.value,
+                occupation: profileOccupation.value
+            };
+            localStorage.setItem('expense_tracker_profile', JSON.stringify(profileData));
+            showToast('Profile saved successfully!');
+        });
+    }
 
     // 2. Notifications
     const savedReminder = JSON.parse(localStorage.getItem('expense_tracker_reminder')) || { enabled: false, time: '21:00' };
-    reminderToggle.checked = savedReminder.enabled;
-    reminderTime.value = savedReminder.time;
+    if (reminderToggle) reminderToggle.checked = savedReminder.enabled;
+    if (reminderTime) reminderTime.value = savedReminder.time;
 
     if (savedReminder.enabled) {
         requestNotificationPermission();
         startReminderInterval(savedReminder.time);
     }
 
-    reminderToggle.addEventListener('change', (e) => {
-        const enabled = e.target.checked;
-        const time = reminderTime.value;
-        saveReminderSettings(enabled, time);
+    if (reminderToggle) {
+        reminderToggle.addEventListener('change', (e) => {
+            const enabled = e.target.checked;
+            const time = reminderTime ? reminderTime.value : '21:00';
+            saveReminderSettings(enabled, time);
 
-        if (enabled) {
-            requestNotificationPermission();
-            startReminderInterval(time);
-        } else {
-            stopReminderInterval();
-        }
-    });
+            if (enabled) {
+                requestNotificationPermission();
+                startReminderInterval(time);
+            } else {
+                stopReminderInterval();
+            }
+        });
+    }
 
-    reminderTime.addEventListener('change', (e) => {
-        const enabled = reminderToggle.checked;
-        const time = e.target.value;
-        saveReminderSettings(enabled, time);
-        if (enabled) {
-            startReminderInterval(time);
-        }
-    });
+    if (reminderTime) {
+        reminderTime.addEventListener('change', (e) => {
+            const enabled = reminderToggle ? reminderToggle.checked : false;
+            const time = e.target.value;
+            saveReminderSettings(enabled, time);
+            if (enabled) {
+                startReminderInterval(time);
+            }
+        });
+    }
 
     // 3. Appearance (Dark Mode)
     const savedTheme = localStorage.getItem('expense_tracker_theme') || 'light';
     if (savedTheme === 'dark') {
         document.body.classList.add('dark-mode');
-        themeToggle.checked = true;
+        if (themeToggle) themeToggle.checked = true;
     }
 
-    themeToggle.addEventListener('change', (e) => {
-        if (e.target.checked) {
-            document.body.classList.add('dark-mode');
-            localStorage.setItem('expense_tracker_theme', 'dark');
-        } else {
-            document.body.classList.remove('dark-mode');
-            localStorage.setItem('expense_tracker_theme', 'light');
-        }
-        // Redraw charts if we want them to update their grid lines (optional, usually Chart.js respects CSS variable inheritance if set properly, or we can just leave it since the prompt says "Charts remain readable").
-        // For simplicity, we just trigger redraw if on dashboard or analytics.
-        if (document.getElementById('view-dashboard').classList.contains('active')) updateDashboardCharts(getCurrentMonthData());
-        if (document.getElementById('view-analytics').classList.contains('active')) updateAnalytics();
-    });
+    if (themeToggle) {
+        themeToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                document.body.classList.add('dark-mode');
+                localStorage.setItem('expense_tracker_theme', 'dark');
+            } else {
+                document.body.classList.remove('dark-mode');
+                localStorage.setItem('expense_tracker_theme', 'light');
+            }
+            if (document.getElementById('view-dashboard').classList.contains('active')) updateDashboardCharts(getCurrentMonthData());
+            if (document.getElementById('view-analytics').classList.contains('active')) updateAnalytics();
+        });
+    }
 }
 
 function saveReminderSettings(enabled, time) {
@@ -933,14 +1085,12 @@ function requestNotificationPermission() {
 function startReminderInterval(timeString) {
     stopReminderInterval();
 
-    // Check every minute
     reminderInterval = setInterval(() => {
         const now = new Date();
         const currentHours = String(now.getHours()).padStart(2, '0');
         const currentMinutes = String(now.getMinutes()).padStart(2, '0');
         const currentTimeString = `${currentHours}:${currentMinutes}`;
 
-        // We also need to make sure we only notify once per day.
         const lastNotifiedDate = localStorage.getItem('expense_tracker_last_notified');
         const todayStr = now.toDateString();
 
@@ -948,7 +1098,7 @@ function startReminderInterval(timeString) {
             triggerNotification();
             localStorage.setItem('expense_tracker_last_notified', todayStr);
         }
-    }, 60000); // 1 minute interval
+    }, 60000);
 }
 
 function stopReminderInterval() {
@@ -962,10 +1112,9 @@ function triggerNotification() {
     if (Notification.permission === "granted") {
         new Notification("Daily Expense Reminder", {
             body: "Don't forget to update today's expenses and earnings.",
-            icon: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png" // Placeholder generic icon
+            icon: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
         });
     } else {
-        // Fallback if browser notifications aren't allowed
         showToast("Reminder: Don't forget to update today's expenses!");
     }
 }
