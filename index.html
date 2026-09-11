@@ -22,6 +22,9 @@
     <link rel="apple-touch-icon" href="icons/icon-192x192.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <!-- jsPDF & AutoTable for PDF Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 
 <body>
@@ -63,6 +66,22 @@
                         <p id="monthly-savings">₹0</p>
                     </div>
                 </div>
+            </div>
+
+            <!-- Monthly Financial Report Action Card -->
+            <div class="card monthly-report-card">
+                <div class="report-card-info">
+                    <div class="report-card-icon">
+                        <i class="fa-solid fa-file-invoice-dollar"></i>
+                    </div>
+                    <div>
+                        <h3>Monthly Financial Report</h3>
+                        <p class="text-muted" style="font-size: 0.8rem;">Generate PDF summaries & email complete financial reports</p>
+                    </div>
+                </div>
+                <button class="btn-primary report-action-btn" onclick="app.navigateTo('report')">
+                    <i class="fa-solid fa-file-pdf"></i> Generate Report
+                </button>
             </div>
 
             <div class="dashboard-charts">
@@ -241,6 +260,15 @@
                     <div class="settings-menu-arrow"><i class="fa-solid fa-chevron-right"></i></div>
                 </div>
 
+                <div class="settings-menu-card" onclick="app.navigateTo('report')">
+                    <div class="settings-menu-icon">📄</div>
+                    <div class="settings-menu-info">
+                        <h3>Monthly Financial Report</h3>
+                        <p>Generate, download & email monthly PDF reports</p>
+                    </div>
+                    <div class="settings-menu-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+                </div>
+
                 <!-- 3. APPEARANCE -->
                 <div class="card settings-card" style="margin-bottom: 15px;">
                     <h3 class="settings-section-title">APPEARANCE</h3>
@@ -323,6 +351,188 @@
             </div>
 
 
+        </section>
+
+        <!-- Monthly Financial Report View -->
+        <section id="view-report" class="view">
+            <div class="report-header-nav">
+                <button class="btn-text settings-back-btn" onclick="app.navigateTo('dashboard')">
+                    <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
+                </button>
+            </div>
+
+            <h2 class="view-title">Monthly Financial Report</h2>
+
+            <!-- Report Configuration Card -->
+            <div class="card report-config-card">
+                <div class="form-group">
+                    <label for="report-month-select"><i class="fa-solid fa-calendar-days"></i> Select Month</label>
+                    <input type="month" id="report-month-select" class="form-input">
+                </div>
+
+                <div class="form-group">
+                    <label for="report-email-input"><i class="fa-solid fa-envelope"></i> Recipient Email Address</label>
+                    <input type="email" id="report-email-input" placeholder="your-email@example.com" class="form-input">
+                </div>
+
+                <div class="report-btn-group">
+                    <button id="generate-report-btn" class="btn-primary">
+                        <i class="fa-solid fa-chart-pie"></i> Generate Report
+                    </button>
+                    <button id="download-pdf-btn" class="btn-secondary hidden">
+                        <i class="fa-solid fa-file-arrow-down"></i> Download PDF
+                    </button>
+                    <button id="email-report-btn" class="btn-secondary hidden">
+                        <i class="fa-solid fa-paper-plane"></i> Send to Email
+                    </button>
+                </div>
+                <div id="report-status-msg" class="report-status hidden"></div>
+            </div>
+
+            <!-- Report Results Display Container (Initially Hidden until Generated) -->
+            <div id="report-results-container" class="hidden">
+                <!-- 1. Header Banner -->
+                <div class="card report-banner-card">
+                    <div class="report-banner-branding">
+                        <span class="report-badge">RIPPLE</span>
+                        <h2 id="report-display-month">Monthly Financial Report</h2>
+                        <p class="text-muted" id="report-generation-time">Generated on --</p>
+                    </div>
+                </div>
+
+                <!-- 2. Financial Summary Cards -->
+                <div class="summary-cards">
+                    <div class="card income-card">
+                        <div class="card-icon"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                        <div class="card-content">
+                            <h3>Total Income</h3>
+                            <p id="report-total-income">₹0</p>
+                            <span class="sub-stat" id="report-income-count">0 transactions</span>
+                        </div>
+                    </div>
+                    <div class="card expense-card">
+                        <div class="card-icon"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                        <div class="card-content">
+                            <h3>Total Expenses</h3>
+                            <p id="report-total-expense">₹0</p>
+                            <span class="sub-stat" id="report-expense-count">0 transactions</span>
+                        </div>
+                    </div>
+                    <div class="card savings-card">
+                        <div class="card-icon"><i class="fa-solid fa-piggy-bank"></i></div>
+                        <div class="card-content">
+                            <h3>Net Savings</h3>
+                            <p id="report-net-savings">₹0</p>
+                            <span class="sub-stat" id="report-savings-rate">Savings Rate: 0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Spending Insights -->
+                <div class="card report-insights-card">
+                    <h3 class="section-subtitle"><i class="fa-solid fa-lightbulb"></i> Spending Insights</h3>
+                    <div class="insights-grid">
+                        <div class="insight-item">
+                            <span class="insight-label">Highest Spending Category</span>
+                            <span class="insight-value" id="insight-highest-category">-</span>
+                        </div>
+                        <div class="insight-item">
+                            <span class="insight-label">Highest Individual Expense</span>
+                            <span class="insight-value" id="insight-highest-expense">-</span>
+                        </div>
+                        <div class="insight-item">
+                            <span class="insight-label">Peak Spending Day</span>
+                            <span class="insight-value" id="insight-peak-day">-</span>
+                        </div>
+                        <div class="insight-item">
+                            <span class="insight-label">Average Daily Spending</span>
+                            <span class="insight-value" id="insight-daily-avg">-</span>
+                        </div>
+                        <div class="insight-item">
+                            <span class="insight-label">Average Transaction Amount</span>
+                            <span class="insight-value" id="insight-avg-tx">-</span>
+                        </div>
+                        <div class="insight-item">
+                            <span class="insight-label">Lowest Expense</span>
+                            <span class="insight-value" id="insight-lowest-expense">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Month-over-Month Comparison (if previous month exists) -->
+                <div id="report-mom-card" class="card report-mom-card hidden">
+                    <h3 class="section-subtitle"><i class="fa-solid fa-chart-line"></i> Month-over-Month Comparison</h3>
+                    <p class="text-muted" style="font-size:0.8rem; margin-bottom: 12px;" id="report-mom-subtitle">Compared to previous month</p>
+                    <div class="mom-grid">
+                        <div class="mom-item">
+                            <span>Income</span>
+                            <strong id="mom-income-change">-</strong>
+                        </div>
+                        <div class="mom-item">
+                            <span>Expenses</span>
+                            <strong id="mom-expense-change">-</strong>
+                        </div>
+                        <div class="mom-item">
+                            <span>Savings</span>
+                            <strong id="mom-savings-change">-</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Expense Category Breakdown -->
+                <div class="card">
+                    <h3 class="section-subtitle"><i class="fa-solid fa-layer-group"></i> Expense Category Breakdown</h3>
+                    <div id="report-category-list" class="category-breakdown-list">
+                        <!-- Injected dynamically -->
+                    </div>
+                </div>
+
+                <!-- 6. Itemized Income Transactions -->
+                <div class="card">
+                    <h3 class="section-subtitle amount-income"><i class="fa-solid fa-arrow-trend-up"></i> Income Transactions</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Category</th>
+                                    <th>Notes</th>
+                                    <th class="text-right">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="report-income-tbody">
+                                <!-- Injected dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="report-no-income-msg" class="empty-state hidden">
+                        <p class="text-muted">No income transactions for this month.</p>
+                    </div>
+                </div>
+
+                <!-- 7. Itemized Expense Transactions -->
+                <div class="card">
+                    <h3 class="section-subtitle amount-expense"><i class="fa-solid fa-arrow-trend-down"></i> Expense Transactions</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Category</th>
+                                    <th>Notes</th>
+                                    <th class="text-right">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="report-expense-tbody">
+                                <!-- Injected dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="report-no-expense-msg" class="empty-state hidden">
+                        <p class="text-muted">No expense transactions for this month.</p>
+                    </div>
+                </div>
+            </div>
         </section>
     </main>
 
