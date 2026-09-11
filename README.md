@@ -1,29 +1,33 @@
-# 🌊 Ripple
+# 🌊 RIPPLE – Personal Expense Tracker
 
-Ripple is a simple personal finance management web application that helps users keep track of their income and expenses. It provides an easy-to-use dashboard where users can record transactions, monitor their spending, and view their financial summary. The application is designed with a clean and responsive interface, making it accessible on both desktop and mobile devices.
+**RIPPLE** is a simple, responsive personal finance app to **track income, expenses, savings, and spending habits** in one place.
 
-## Features
+> *Track. Save. Grow.*
 
-- User Registration & Login
-- Add Income and Expenses
-- View Transaction History
-- Dashboard with Financial Summary
-- Responsive User Interface
-- Secure Authentication using Supabase
+## ✨ Features
 
-## Tech Stack
+* 💰 Track Income & Expenses
+* 📊 Financial Dashboard & Analytics
+* 🗂️ Category-wise Expense Tracking
+* 📜 Transaction History & Search
+* 📄 Generate Monthly PDF Reports
+* 📧 Email Financial Reports
+* 📱 Responsive & PWA Support
+* 💾 Google Sheets-based Data Storage
 
-- HTML
-- CSS
-- JavaScript
-- Supabase
-- PostgreSQL
-- Netlify (Deployment)
+## 🛠️ Tech Stack
 
-## Purpose
+* **Frontend:** HTML, CSS, JavaScript
+* **Charts:** Chart.js
+* **Reports:** jsPDF
+* **Backend:** Google Apps Script
+* **Database:** Google Sheets
+* **Icons:** Font Awesome
 
-Ripple helps users manage their daily finances by organizing income and expenses in one place, making it easier to monitor spending habits and maintain a better financial record.
+## 🚀 Purpose
 
-## Developer
+RIPPLE makes personal money management **simple, visual, and accessible**, helping users understand where their money goes and build better financial habits.
+
+## 👨‍💻 Developer
 
 **Guru**
