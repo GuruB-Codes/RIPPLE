@@ -40,12 +40,32 @@ const monthlyExpenseEl = document.getElementById('monthly-expense');
 const monthlySavingsEl = document.getElementById('monthly-savings');
 const recentTransactionsList = document.getElementById('recent-transactions-list');
 
+// Categories Configuration
+const CATEGORIES = {
+    Expense: [
+        'Snacks',
+        'Food',
+        'Petrol',
+        'Bike Service',
+        'Stationery',
+        'Electricity',
+        'BC Amt',
+        'Phone Bill',
+        'Clothing',
+        'Others'
+    ],
+    Income: [
+        'Salary',
+        'Pocket Money',
+        'Freelance',
+        'Others'
+    ]
+};
+
 // Form Elements
 const addForm = document.getElementById('add-transaction-form');
 const typeRadios = document.getElementsByName('type');
 const categorySelect = document.getElementById('category');
-const expenseCategories = document.getElementById('expense-categories');
-const incomeCategories = document.getElementById('income-categories');
 const dateInput = document.getElementById('date');
 
 // History Elements
@@ -150,6 +170,8 @@ function navigateTo(viewId) {
         closeSettingsSub();
     } else if (viewId === 'report') {
         initReportView();
+    } else if (viewId === 'add') {
+        updateCategoryOptions();
     }
 }
 
@@ -158,21 +180,24 @@ window.app = {
     navigateTo: navigateTo
 };
 
+// --- CATEGORY DROPDOWN MANAGEMENT ---
+function updateCategoryOptions(type) {
+    if (!categorySelect) return;
+    const selectedType = type || (document.querySelector('input[name="type"]:checked')?.value || 'Expense');
+    const options = CATEGORIES[selectedType] || CATEGORIES.Expense;
+    categorySelect.innerHTML = options.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+    categorySelect.value = options[0];
+}
+
 // --- FORM HANDLING ---
 function setupFormToggle() {
     typeRadios.forEach(radio => {
         radio.addEventListener('change', (e) => {
-            if (e.target.value === 'Income') {
-                expenseCategories.style.display = 'none';
-                incomeCategories.style.display = 'block';
-                categorySelect.value = incomeCategories.querySelector('option').value;
-            } else {
-                expenseCategories.style.display = 'block';
-                incomeCategories.style.display = 'none';
-                categorySelect.value = expenseCategories.querySelector('option').value;
-            }
+            updateCategoryOptions(e.target.value);
         });
     });
+    // Ensure correct category options on initial load
+    updateCategoryOptions();
 }
 
 function setupFormSubmission() {
@@ -230,7 +255,9 @@ function setupFormSubmission() {
             const mm = String(today.getMonth() + 1).padStart(2, '0');
             const dd = String(today.getDate()).padStart(2, '0');
             dateInput.value = `${yyyy}-${mm}-${dd}`;
-            document.getElementById('type-expense').click();
+            const expenseRadio = document.getElementById('type-expense');
+            if (expenseRadio) expenseRadio.checked = true;
+            updateCategoryOptions('Expense');
         } catch (err) {
             debugLog('Form submission error', err);
         } finally {
