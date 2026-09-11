@@ -932,3 +932,303 @@ input:checked + .slider:before {
         top: -15px;
     }
 }
+
+/* ==========================================================================
+   Monthly Financial Report Styles
+   ========================================================================== */
+
+/* Dashboard Prompt Card */
+.monthly-report-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(16, 185, 129, 0.08));
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    padding: 18px 20px;
+    margin-bottom: 25px;
+    gap: 15px;
+}
+
+.report-card-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.report-card-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: var(--radius-full);
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--secondary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+}
+
+.report-action-btn {
+    white-space: nowrap;
+    padding: 10px 18px;
+    font-size: 0.9rem;
+}
+
+/* Report View Layout */
+.report-header-nav {
+    margin-bottom: 15px;
+}
+
+.report-config-card {
+    margin-bottom: 20px;
+}
+
+.report-btn-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 15px;
+}
+
+.btn-secondary {
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    padding: 12px 18px;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-secondary:hover {
+    background-color: var(--border-color);
+    border-color: var(--secondary-color);
+}
+
+.report-status {
+    margin-top: 15px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    font-weight: 500;
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    color: var(--text-main);
+    animation: fadeIn 0.3s ease;
+}
+
+.report-status.success {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: var(--income-color);
+    color: #065F46;
+}
+
+.report-status.error {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: var(--expense-color);
+    color: #991B1B;
+}
+
+/* Report Banner */
+.report-banner-card {
+    text-align: center;
+    padding: 24px;
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(16, 185, 129, 0.06));
+    border: 1px solid var(--border-color);
+}
+
+.report-badge {
+    display: inline-block;
+    background: var(--secondary-color);
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    margin-bottom: 8px;
+}
+
+.sub-stat {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-weight: 500;
+}
+
+.section-subtitle {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Spending Insights Grid */
+.insights-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+}
+
+.insight-item {
+    background-color: var(--bg-color);
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.insight-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.insight-value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+/* Month-over-Month Comparison */
+.mom-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.mom-item {
+    background-color: var(--bg-color);
+    padding: 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 4px;
+}
+
+.mom-item span {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.mom-item strong {
+    font-size: 0.95rem;
+}
+
+.mom-up {
+    color: var(--expense-color);
+}
+
+.mom-down {
+    color: var(--income-color);
+}
+
+/* Expense Category Breakdown */
+.category-breakdown-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cat-breakdown-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cat-breakdown-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+.cat-breakdown-title {
+    font-weight: 500;
+}
+
+.cat-breakdown-amt {
+    font-weight: 600;
+}
+
+.cat-breakdown-bar-bg {
+    height: 8px;
+    background-color: var(--border-color);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.cat-breakdown-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--secondary-color), var(--primary-color));
+    border-radius: var(--radius-full);
+    transition: width 0.5s ease;
+}
+
+/* Dark mode adjustments for report */
+body.dark-mode .monthly-report-card {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(16, 185, 129, 0.15));
+    border-color: rgba(99, 102, 241, 0.3);
+}
+
+body.dark-mode .report-banner-card {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.18), rgba(16, 185, 129, 0.12));
+}
+
+body.dark-mode .insight-item,
+body.dark-mode .mom-item {
+    background-color: var(--bg-color);
+    border-color: var(--border-color);
+}
+
+body.dark-mode .report-status.success {
+    background: rgba(16, 185, 129, 0.2);
+    color: #6EE7B7;
+}
+
+body.dark-mode .report-status.error {
+    background: rgba(239, 68, 68, 0.2);
+    color: #FCA5A5;
+}
+
+/* Responsive adjustment */
+@media (max-width: 600px) {
+    .monthly-report-card {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: left;
+    }
+
+    .report-action-btn {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+
+    .report-btn-group {
+        flex-direction: column;
+    }
+
+    .report-btn-group button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .mom-grid {
+        grid-template-columns: 1fr;
+    }
+}
+

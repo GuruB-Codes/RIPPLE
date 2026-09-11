@@ -1,13 +1,13 @@
 /* -------------------------------------------------
    Service Worker for RIPPLE PWA
-   - Version: ripple-static-v2
+   - Version: ripple-static-v6
    - Network‑first for core assets (HTML, CSS, JS) so updates deploy instantly
    - Cache‑fallback for offline functionality
    - Bypasses dynamic Google Apps Script API calls completely
    - Cleans up older caches on activate
    ------------------------------------------------- */
 
-const CACHE_NAME = 'ripple-static-v2';
+const CACHE_NAME = 'ripple-static-v6';
 
 const STATIC_ASSETS = [
   './',

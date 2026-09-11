@@ -74,6 +74,16 @@ const themeToggle = document.getElementById('theme-toggle');
 
 let reminderInterval = null;
 
+// Monthly Financial Report Elements
+const reportMonthSelect = document.getElementById('report-month-select');
+const reportEmailInput = document.getElementById('report-email-input');
+const generateReportBtn = document.getElementById('generate-report-btn');
+const downloadPdfBtn = document.getElementById('download-pdf-btn');
+const emailReportBtn = document.getElementById('email-report-btn');
+const reportStatusMsg = document.getElementById('report-status-msg');
+const reportResultsContainer = document.getElementById('report-results-container');
+let currentReportData = null;
+
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
     // Set default date to today in local format (YYYY-MM-DD)
@@ -93,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFilters();
     setupSettings();
     setupMobileLifecycle();
+    setupMonthlyReport();
 
     // 1. Immediately show cached data if available (zero-latency load on mobile PWA)
     const hasCachedData = loadCachedTransactions();
@@ -137,6 +148,8 @@ function navigateTo(viewId) {
         updateAnalytics();
     } else if (viewId === 'settings') {
         closeSettingsSub();
+    } else if (viewId === 'report') {
+        initReportView();
     }
 }
 
@@ -1118,3 +1131,805 @@ function triggerNotification() {
         showToast("Reminder: Don't forget to update today's expenses!");
     }
 }
+
+// ==========================================================================
+// MONTHLY FINANCIAL REPORT IMPLEMENTATION
+// ==========================================================================
+
+const FULL_MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+function initReportView() {
+    if (reportMonthSelect && !reportMonthSelect.value) {
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        reportMonthSelect.value = `${yyyy}-${mm}`;
+    }
+
+    if (reportEmailInput && !reportEmailInput.value) {
+        try {
+            const savedProfile = JSON.parse(localStorage.getItem('expense_tracker_profile')) || {};
+            if (savedProfile.email) {
+                reportEmailInput.value = savedProfile.email;
+            }
+        } catch (e) {
+            console.warn('[RIPPLE] Failed reading profile email for report:', e);
+        }
+    }
+}
+
+function setupMonthlyReport() {
+    initReportView();
+
+    if (generateReportBtn) {
+        generateReportBtn.addEventListener('click', handleGenerateReport);
+    }
+
+    if (downloadPdfBtn) {
+        downloadPdfBtn.addEventListener('click', () => {
+            if (currentReportData) {
+                generatePdfReport(currentReportData);
+            }
+        });
+    }
+
+    if (emailReportBtn) {
+        emailReportBtn.addEventListener('click', () => {
+            if (currentReportData) {
+                sendReportEmail(currentReportData);
+            }
+        });
+    }
+}
+
+function showReportStatus(message, type = '') {
+    if (!reportStatusMsg) return;
+    reportStatusMsg.innerHTML = message;
+    reportStatusMsg.className = 'report-status ' + type;
+    reportStatusMsg.classList.remove('hidden');
+}
+
+function hideReportStatus() {
+    if (reportStatusMsg) {
+        reportStatusMsg.classList.add('hidden');
+    }
+}
+
+function handleGenerateReport() {
+    const monthVal = reportMonthSelect ? reportMonthSelect.value : '';
+    if (!monthVal || monthVal.indexOf('-') === -1) {
+        showReportStatus('⚠️ Please select a valid month.', 'error');
+        return;
+    }
+
+    const [yearStr, monthStr] = monthVal.split('-');
+    const targetYear = parseInt(yearStr, 10);
+    const targetMonthIndex = parseInt(monthStr, 10) - 1; // 0-indexed
+
+    hideReportStatus();
+    showToast(`Generating your ${FULL_MONTH_NAMES[targetMonthIndex]} ${targetYear} report...`);
+
+    const report = calculateMonthlyReport(targetYear, targetMonthIndex);
+    currentReportData = report;
+
+    renderReportResults(report);
+    showReportStatus(`Report generated successfully for ${report.monthLabel}.`, 'success');
+}
+
+function calculateMonthlyReport(targetYear, targetMonthIndex) {
+    const monthLabel = `${FULL_MONTH_NAMES[targetMonthIndex]} ${targetYear}`;
+    const monthSlug = `${FULL_MONTH_NAMES[targetMonthIndex]}_${targetYear}`;
+
+    // Current month transactions
+    const currentMonthTx = transactions.filter(t => {
+        const d = parseDate(t.Date);
+        return d && d.getFullYear() === targetYear && d.getMonth() === targetMonthIndex;
+    });
+
+    // Previous month transactions for Month-over-Month comparison
+    let prevYear = targetYear;
+    let prevMonthIndex = targetMonthIndex - 1;
+    if (prevMonthIndex < 0) {
+        prevMonthIndex = 11;
+        prevYear -= 1;
+    }
+    const prevMonthTx = transactions.filter(t => {
+        const d = parseDate(t.Date);
+        return d && d.getFullYear() === prevYear && d.getMonth() === prevMonthIndex;
+    });
+
+    // Income calculations
+    const incomeList = currentMonthTx.filter(t => t.Type === 'Income');
+    const incomeAmounts = incomeList.map(t => parseAmount(t.Amount));
+    const totalIncome = incomeAmounts.reduce((sum, a) => sum + a, 0);
+    const incomeCount = incomeList.length;
+    const avgIncome = incomeCount > 0 ? totalIncome / incomeCount : 0;
+    const highestIncome = incomeAmounts.length > 0 ? Math.max(...incomeAmounts) : 0;
+
+    // Expense calculations
+    const expenseList = currentMonthTx.filter(t => t.Type === 'Expense');
+    const expenseAmounts = expenseList.map(t => parseAmount(t.Amount));
+    const totalExpense = expenseAmounts.reduce((sum, a) => sum + a, 0);
+    const expenseCount = expenseList.length;
+    const avgExpense = expenseCount > 0 ? totalExpense / expenseCount : 0;
+    const highestExpense = expenseAmounts.length > 0 ? Math.max(...expenseAmounts) : 0;
+    const lowestExpense = expenseAmounts.length > 0 ? Math.min(...expenseAmounts) : 0;
+
+    // Savings calculations (avoid division by zero if totalIncome is 0)
+    const netSavings = totalIncome - totalExpense;
+    const savingsRate = totalIncome > 0 ? ((netSavings / totalIncome) * 100) : 0;
+
+    // Expense category analysis: group, sort descending, calculate percentages
+    const catTotals = {};
+    expenseList.forEach(t => {
+        const cat = (t.Category || 'Others').trim();
+        catTotals[cat] = (catTotals[cat] || 0) + parseAmount(t.Amount);
+    });
+
+    const categoryBreakdown = Object.keys(catTotals).map(cat => {
+        const amt = catTotals[cat];
+        const pct = totalExpense > 0 ? ((amt / totalExpense) * 100) : 0;
+        return {
+            category: cat,
+            amount: amt,
+            percentage: pct.toFixed(1)
+        };
+    }).sort((a, b) => b.amount - a.amount);
+
+    // Spending insights
+    const highestCategory = categoryBreakdown.length > 0 ? categoryBreakdown[0] : null;
+
+    let highestIndividualExpense = null;
+    expenseList.forEach(t => {
+        const amt = parseAmount(t.Amount);
+        if (!highestIndividualExpense || amt > parseAmount(highestIndividualExpense.Amount)) {
+            highestIndividualExpense = t;
+        }
+    });
+
+    // Peak spending day
+    const dailySpending = {};
+    expenseList.forEach(t => {
+        const dStr = formatDateDisplay(t.Date);
+        dailySpending[dStr] = (dailySpending[dStr] || 0) + parseAmount(t.Amount);
+    });
+    let peakDay = '-';
+    let peakDayAmount = 0;
+    for (const day in dailySpending) {
+        if (dailySpending[day] > peakDayAmount) {
+            peakDayAmount = dailySpending[day];
+            peakDay = day;
+        }
+    }
+
+    const daysInMonth = new Date(targetYear, targetMonthIndex + 1, 0).getDate();
+    const now = new Date();
+    const isCurrentMonthYear = (targetYear === now.getFullYear() && targetMonthIndex === now.getMonth());
+    const daysElapsed = isCurrentMonthYear ? Math.min(now.getDate(), daysInMonth) : daysInMonth;
+    const avgDailySpending = totalExpense / (daysElapsed || 1);
+    const avgTxAmount = expenseCount > 0 ? totalExpense / expenseCount : 0;
+
+    // Month-over-Month comparison
+    const prevIncome = prevMonthTx.filter(t => t.Type === 'Income').reduce((s, t) => s + parseAmount(t.Amount), 0);
+    const prevExpense = prevMonthTx.filter(t => t.Type === 'Expense').reduce((s, t) => s + parseAmount(t.Amount), 0);
+    const prevSavings = prevIncome - prevExpense;
+    const hasPrevData = (prevIncome > 0 || prevExpense > 0);
+
+    const incomeChangePct = (hasPrevData && prevIncome > 0) ? (((totalIncome - prevIncome) / prevIncome) * 100) : null;
+    const expenseChangePct = (hasPrevData && prevExpense > 0) ? (((totalExpense - prevExpense) / prevExpense) * 100) : null;
+    const savingsChangePct = (hasPrevData && prevSavings !== 0) ? (((netSavings - prevSavings) / Math.abs(prevSavings)) * 100) : null;
+
+    return {
+        monthStr: `${targetYear}-${String(targetMonthIndex + 1).padStart(2, '0')}`,
+        monthLabel,
+        monthSlug,
+        targetYear,
+        targetMonthIndex,
+        totalIncome,
+        incomeCount,
+        avgIncome,
+        highestIncome,
+        totalExpense,
+        expenseCount,
+        avgExpense,
+        highestExpense,
+        lowestExpense,
+        netSavings,
+        savingsRate,
+        categoryBreakdown,
+        highestCategory,
+        highestIndividualExpense,
+        peakDay,
+        peakDayAmount,
+        daysInMonth,
+        daysElapsed,
+        avgDailySpending,
+        avgTxAmount,
+        incomeList,
+        expenseList,
+        hasPrevData,
+        prevIncome,
+        prevExpense,
+        prevSavings,
+        incomeChangePct,
+        expenseChangePct,
+        savingsChangePct,
+        generatedAt: new Date()
+    };
+}
+
+function renderReportResults(report) {
+    // 1. Banner
+    const displayMonthEl = document.getElementById('report-display-month');
+    const genTimeEl = document.getElementById('report-generation-time');
+    if (displayMonthEl) displayMonthEl.textContent = `Monthly Financial Report – ${report.monthLabel}`;
+    if (genTimeEl) genTimeEl.textContent = `Generated on ${report.generatedAt.toLocaleDateString()} at ${report.generatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+    // 2. Summary Cards
+    const totalIncomeEl = document.getElementById('report-total-income');
+    const incomeCountEl = document.getElementById('report-income-count');
+    const totalExpenseEl = document.getElementById('report-total-expense');
+    const expenseCountEl = document.getElementById('report-expense-count');
+    const netSavingsEl = document.getElementById('report-net-savings');
+    const savingsRateEl = document.getElementById('report-savings-rate');
+
+    if (totalIncomeEl) totalIncomeEl.textContent = `₹${report.totalIncome.toLocaleString('en-IN')}`;
+    if (incomeCountEl) incomeCountEl.textContent = `${report.incomeCount} transaction${report.incomeCount === 1 ? '' : 's'}`;
+    if (totalExpenseEl) totalExpenseEl.textContent = `₹${report.totalExpense.toLocaleString('en-IN')}`;
+    if (expenseCountEl) expenseCountEl.textContent = `${report.expenseCount} transaction${report.expenseCount === 1 ? '' : 's'}`;
+    if (netSavingsEl) netSavingsEl.textContent = `₹${report.netSavings.toLocaleString('en-IN')}`;
+    if (savingsRateEl) savingsRateEl.textContent = `Savings Rate: ${report.savingsRate.toFixed(2)}%`;
+
+    // 3. Spending Insights
+    const hiCatEl = document.getElementById('insight-highest-category');
+    const hiExpEl = document.getElementById('insight-highest-expense');
+    const peakDayEl = document.getElementById('insight-peak-day');
+    const dailyAvgEl = document.getElementById('insight-daily-avg');
+    const avgTxEl = document.getElementById('insight-avg-tx');
+    const lowExpEl = document.getElementById('insight-lowest-expense');
+
+    if (hiCatEl) {
+        hiCatEl.textContent = report.highestCategory 
+            ? `${report.highestCategory.category} (₹${report.highestCategory.amount.toLocaleString('en-IN')} • ${report.highestCategory.percentage}%)` 
+            : 'None';
+    }
+    if (hiExpEl) {
+        hiExpEl.textContent = report.highestIndividualExpense 
+            ? `${report.highestIndividualExpense.Category} (₹${parseAmount(report.highestIndividualExpense.Amount).toLocaleString('en-IN')} on ${formatDateDisplay(report.highestIndividualExpense.Date)})` 
+            : 'None';
+    }
+    if (peakDayEl) {
+        peakDayEl.textContent = report.peakDay !== '-' 
+            ? `${report.peakDay} (₹${report.peakDayAmount.toLocaleString('en-IN')})` 
+            : '-';
+    }
+    if (dailyAvgEl) {
+        dailyAvgEl.textContent = `₹${Math.round(report.avgDailySpending).toLocaleString('en-IN')} / day`;
+    }
+    if (avgTxEl) {
+        avgTxEl.textContent = `₹${Math.round(report.avgTxAmount).toLocaleString('en-IN')}`;
+    }
+    if (lowExpEl) {
+        lowExpEl.textContent = report.lowestExpense > 0 
+            ? `₹${report.lowestExpense.toLocaleString('en-IN')}` 
+            : '-';
+    }
+
+    // 4. Month-over-Month Comparison
+    const momCard = document.getElementById('report-mom-card');
+    if (momCard) {
+        if (report.hasPrevData) {
+            momCard.classList.remove('hidden');
+            const formatChange = (pct) => {
+                if (pct === null) return '-';
+                const sign = pct >= 0 ? '+' : '';
+                const cls = pct >= 0 ? 'mom-down' : 'mom-up';
+                return `<span class="${cls}">${sign}${pct.toFixed(1)}%</span>`;
+            };
+            const momIncEl = document.getElementById('mom-income-change');
+            const momExpEl = document.getElementById('mom-expense-change');
+            const momSavEl = document.getElementById('mom-savings-change');
+            if (momIncEl) momIncEl.innerHTML = formatChange(report.incomeChangePct);
+            if (momExpEl) momExpEl.innerHTML = formatChange(report.expenseChangePct);
+            if (momSavEl) momSavEl.innerHTML = formatChange(report.savingsChangePct);
+        } else {
+            momCard.classList.add('hidden');
+        }
+    }
+
+    // 5. Expense Category Breakdown
+    const catListEl = document.getElementById('report-category-list');
+    if (catListEl) {
+        catListEl.innerHTML = '';
+        if (report.categoryBreakdown.length === 0) {
+            catListEl.innerHTML = '<p class="text-muted" style="text-align:center; padding:15px;">No expenses recorded for this month.</p>';
+        } else {
+            report.categoryBreakdown.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'cat-breakdown-row';
+                row.innerHTML = `
+                    <div class="cat-breakdown-header">
+                        <span class="cat-breakdown-title">${item.category}</span>
+                        <span class="cat-breakdown-amt">₹${item.amount.toLocaleString('en-IN')} <span class="text-muted">(${item.percentage}%)</span></span>
+                    </div>
+                    <div class="cat-breakdown-bar-bg">
+                        <div class="cat-breakdown-bar-fill" style="width: ${item.percentage}%;"></div>
+                    </div>
+                `;
+                catListEl.appendChild(row);
+            });
+        }
+    }
+
+    // 6. Income Transactions Table
+    const incomeTbody = document.getElementById('report-income-tbody');
+    const noIncomeMsg = document.getElementById('report-no-income-msg');
+    if (incomeTbody) {
+        incomeTbody.innerHTML = '';
+        if (report.incomeList.length === 0) {
+            if (noIncomeMsg) noIncomeMsg.classList.remove('hidden');
+        } else {
+            if (noIncomeMsg) noIncomeMsg.classList.add('hidden');
+            report.incomeList.forEach(t => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${formatDateDisplay(t.Date)}</td>
+                    <td><span class="category-badge">${t.Category}</span></td>
+                    <td style="color:var(--text-muted); font-size:0.85rem;">${t.Notes || '-'}</td>
+                    <td class="text-right amount-income">+₹${parseAmount(t.Amount).toLocaleString('en-IN')}</td>
+                `;
+                incomeTbody.appendChild(tr);
+            });
+        }
+    }
+
+    // 7. Expense Transactions Table
+    const expenseTbody = document.getElementById('report-expense-tbody');
+    const noExpenseMsg = document.getElementById('report-no-expense-msg');
+    if (expenseTbody) {
+        expenseTbody.innerHTML = '';
+        if (report.expenseList.length === 0) {
+            if (noExpenseMsg) noExpenseMsg.classList.remove('hidden');
+        } else {
+            if (noExpenseMsg) noExpenseMsg.classList.add('hidden');
+            report.expenseList.forEach(t => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${formatDateDisplay(t.Date)}</td>
+                    <td><span class="category-badge">${t.Category}</span></td>
+                    <td style="color:var(--text-muted); font-size:0.85rem;">${t.Notes || '-'}</td>
+                    <td class="text-right amount-expense">-₹${parseAmount(t.Amount).toLocaleString('en-IN')}</td>
+                `;
+                expenseTbody.appendChild(tr);
+            });
+        }
+    }
+
+    // Reveal results and action buttons
+    if (reportResultsContainer) reportResultsContainer.classList.remove('hidden');
+    if (downloadPdfBtn) downloadPdfBtn.classList.remove('hidden');
+    if (emailReportBtn) emailReportBtn.classList.remove('hidden');
+
+    // Smooth scroll down to results
+    if (reportResultsContainer) {
+        reportResultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+// Build client-side vector PDF document using jsPDF and autoTable
+function buildPdfDocument(report) {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        return null;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 16;
+
+    // Header Branding
+    doc.setFillColor(79, 70, 229); // Primary Indigo
+    doc.rect(14, y, pageWidth - 28, 20, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(255, 255, 255);
+    doc.text('RIPPLE', 20, y + 9);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Monthly Financial Report – ${report.monthLabel}`, 20, y + 15);
+
+    const genStr = `Generated: ${report.generatedAt.toLocaleDateString()}`;
+    doc.text(genStr, pageWidth - 20 - doc.getTextWidth(genStr), y + 15);
+
+    y += 28;
+
+    // Financial Summary Table Grid
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Executive Summary', 14, y);
+    y += 4;
+
+    const netSavingsFormatted = `${report.netSavings >= 0 ? '+' : '-'}Rs. ${Math.abs(report.netSavings).toLocaleString('en-IN')}`;
+
+    doc.autoTable({
+        startY: y,
+        theme: 'grid',
+        head: [['Total Income', 'Total Expenses', 'Net Savings', 'Savings Rate', 'Transactions']],
+        body: [[
+            `+Rs. ${report.totalIncome.toLocaleString('en-IN')}`,
+            `-Rs. ${report.totalExpense.toLocaleString('en-IN')}`,
+            netSavingsFormatted,
+            `${report.savingsRate.toFixed(2)}%`,
+            `${report.incomeCount + report.expenseCount} total`
+        ]],
+        headStyles: {
+            fillColor: [241, 245, 249],
+            textColor: [71, 85, 105],
+            fontStyle: 'bold',
+            fontSize: 8.5,
+            halign: 'center',
+            cellPadding: 3.5
+        },
+        bodyStyles: {
+            fontSize: 10,
+            fontStyle: 'bold',
+            halign: 'center',
+            cellPadding: 3.5
+        },
+        columnStyles: {
+            0: { cellWidth: 37, textColor: [16, 185, 129] },
+            1: { cellWidth: 37, textColor: [239, 68, 68] },
+            2: { cellWidth: 36, textColor: [99, 102, 241] },
+            3: { cellWidth: 36, textColor: [99, 102, 241] },
+            4: { cellWidth: 36, textColor: [71, 85, 105] }
+        }
+    });
+
+    y = doc.lastAutoTable.finalY + 10;
+
+    // Spending Insights Table
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Spending Insights', 14, y);
+    y += 4;
+
+    const hiCatStr = report.highestCategory 
+        ? `${report.highestCategory.category} (Rs. ${report.highestCategory.amount.toLocaleString('en-IN')} • ${report.highestCategory.percentage}%)` 
+        : 'None';
+    const hiExpStr = report.highestIndividualExpense 
+        ? `${report.highestIndividualExpense.Category} (Rs. ${parseAmount(report.highestIndividualExpense.Amount).toLocaleString('en-IN')} on ${formatDateDisplay(report.highestIndividualExpense.Date)})` 
+        : 'None';
+
+    const insightRows = [
+        ['Highest Spending Category', hiCatStr],
+        ['Highest Individual Expense', hiExpStr],
+        ['Peak Spending Day', report.peakDay !== '-' ? `${report.peakDay} (Rs. ${report.peakDayAmount.toLocaleString('en-IN')})` : '-'],
+        ['Average Daily Spending', `Rs. ${Math.round(report.avgDailySpending).toLocaleString('en-IN')} / day`],
+        ['Average Transaction Size', `Rs. ${Math.round(report.avgTxAmount).toLocaleString('en-IN')}`]
+    ];
+
+    if (report.lowestExpense && report.lowestExpense > 0) {
+        insightRows.push(['Lowest Expense', `Rs. ${report.lowestExpense.toLocaleString('en-IN')}`]);
+    }
+    insightRows.push(['Total Expense Transactions', `${report.expenseCount} transactions`]);
+
+    doc.autoTable({
+        startY: y,
+        theme: 'striped',
+        body: insightRows,
+        styles: {
+            fontSize: 8.5,
+            cellPadding: 2.8,
+            overflow: 'linebreak'
+        },
+        columnStyles: {
+            0: { fontStyle: 'bold', textColor: [71, 85, 105], cellWidth: 58 },
+            1: { textColor: [30, 41, 59], cellWidth: 124 }
+        },
+        alternateRowStyles: {
+            fillColor: [248, 250, 252]
+        }
+    });
+
+    y = doc.lastAutoTable.finalY + 10;
+
+    // Expense Category Breakdown Table
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Expense Category Breakdown', 14, y);
+    y += 4;
+
+    const catRows = report.categoryBreakdown.map(c => [
+        c.category,
+        `Rs. ${c.amount.toLocaleString('en-IN')}`,
+        `${c.percentage}%`
+    ]);
+
+    doc.autoTable({
+        startY: y,
+        theme: 'striped',
+        head: [[
+            { content: 'Category', styles: { halign: 'left' } },
+            { content: 'Amount (Rs.)', styles: { halign: 'center' } },
+            { content: 'Percentage of Expenses', styles: { halign: 'center' } }
+        ]],
+        body: catRows.length > 0 ? catRows : [['No expense categories', '-', '-']],
+        headStyles: {
+            fillColor: [99, 102, 241],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 9
+        },
+        styles: {
+            fontSize: 8.5,
+            cellPadding: 2.8,
+            overflow: 'linebreak'
+        },
+        columnStyles: {
+            0: { cellWidth: 72, halign: 'left' },
+            1: { cellWidth: 50, halign: 'center', fontStyle: 'bold' },
+            2: { cellWidth: 60, halign: 'center' }
+        },
+        didParseCell: function(data) {
+            if (data.column.index === 1) {
+                data.cell.styles.halign = 'center';
+            }
+            if (data.column.index === 2) {
+                data.cell.styles.halign = 'center';
+            }
+        },
+        alternateRowStyles: {
+            fillColor: [248, 250, 252]
+        }
+    });
+
+    // Itemized Income Transactions
+    if (report.incomeList.length > 0) {
+        doc.addPage();
+        y = 16;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.setTextColor(16, 185, 129);
+        doc.text(`Income Transactions (${report.incomeList.length})`, 14, y);
+        y += 4;
+
+        const incomeRows = report.incomeList.map(item => [
+            formatDateDisplay(item.Date),
+            item.Category,
+            item.Notes || '-',
+            `+Rs. ${parseAmount(item.Amount).toLocaleString('en-IN')}`
+        ]);
+
+        doc.autoTable({
+            startY: y,
+            theme: 'striped',
+            head: [[
+                { content: 'Date', styles: { halign: 'left' } },
+                { content: 'Category', styles: { halign: 'left' } },
+                { content: 'Notes / Description', styles: { halign: 'left' } },
+                { content: 'Amount (Rs.)', styles: { halign: 'right' } }
+            ]],
+            body: incomeRows,
+            headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+            styles: { fontSize: 8.5, cellPadding: 2.8, overflow: 'linebreak' },
+            columnStyles: {
+                0: { cellWidth: 28 },
+                1: { cellWidth: 38 },
+                2: { cellWidth: 76 },
+                3: { cellWidth: 40, halign: 'right', fontStyle: 'bold', textColor: [16, 185, 129] }
+            },
+            didParseCell: function(data) {
+                if (data.column.index === 3) {
+                    data.cell.styles.halign = 'right';
+                }
+            },
+            alternateRowStyles: {
+                fillColor: [248, 250, 252]
+            }
+        });
+
+        y = doc.lastAutoTable.finalY + 10;
+    }
+
+    // Itemized Expense Transactions
+    if (report.expenseList.length > 0) {
+        if (y > 220 || report.incomeList.length === 0) {
+            if (report.incomeList.length > 0) doc.addPage();
+            y = 16;
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.setTextColor(239, 68, 68);
+        doc.text(`Expense Transactions (${report.expenseList.length})`, 14, y);
+        y += 4;
+
+        const expenseRows = report.expenseList.map(item => [
+            formatDateDisplay(item.Date),
+            item.Category,
+            item.Notes || '-',
+            `-Rs. ${parseAmount(item.Amount).toLocaleString('en-IN')}`
+        ]);
+
+        doc.autoTable({
+            startY: y,
+            theme: 'striped',
+            head: [[
+                { content: 'Date', styles: { halign: 'left' } },
+                { content: 'Category', styles: { halign: 'left' } },
+                { content: 'Notes / Description', styles: { halign: 'left' } },
+                { content: 'Amount (Rs.)', styles: { halign: 'right' } }
+            ]],
+            body: expenseRows,
+            headStyles: { fillColor: [239, 68, 68], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+            styles: { fontSize: 8.5, cellPadding: 2.8, overflow: 'linebreak' },
+            columnStyles: {
+                0: { cellWidth: 28 },
+                1: { cellWidth: 38 },
+                2: { cellWidth: 76 },
+                3: { cellWidth: 40, halign: 'right', fontStyle: 'bold', textColor: [239, 68, 68] }
+            },
+            didParseCell: function(data) {
+                if (data.column.index === 3) {
+                    data.cell.styles.halign = 'right';
+                }
+            },
+            alternateRowStyles: {
+                fillColor: [248, 250, 252]
+            }
+        });
+    }
+
+    // Footer on all pages
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        doc.text(
+            `RIPPLE – Expense Tracker • Report for ${report.monthLabel} • Page ${i} of ${totalPages}`,
+            pageWidth / 2,
+            doc.internal.pageSize.getHeight() - 8,
+            { align: 'center' }
+        );
+    }
+
+    return doc;
+}
+
+// Generate and trigger download of client-side PDF
+function generatePdfReport(report) {
+    try {
+        const doc = buildPdfDocument(report);
+        if (!doc) {
+            showToast('⚠️ PDF generator library loading. Please wait a moment and try again.');
+            return;
+        }
+        const filename = `RIPPLE_Report_${report.monthSlug}.pdf`;
+        doc.save(filename);
+        showToast('📄 PDF downloaded successfully!');
+    } catch (err) {
+        console.error('[RIPPLE] PDF generation error:', err);
+        showToast('❌ Failed to generate PDF: ' + err.message);
+    }
+}
+
+// Send Monthly Report via Google Apps Script Email
+async function sendReportEmail(report) {
+    const email = (reportEmailInput ? reportEmailInput.value : '').trim();
+    if (!email || email.indexOf('@') === -1 || email.indexOf('.') === -1) {
+        showReportStatus('⚠️ Please enter a valid recipient email address.', 'error');
+        if (reportEmailInput) reportEmailInput.focus();
+        return;
+    }
+
+    // Check offline state
+    if (!navigator.onLine) {
+        showReportStatus('⚠️ Internet connection required to generate and send the monthly report.', 'error');
+        showToast('⚠️ Internet connection required to send email.');
+        return;
+    }
+
+    if (!SCRIPT_URL || SCRIPT_URL.includes('YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE')) {
+        showReportStatus('⚠️ API URL not configured. Please set SCRIPT_URL in app.js.', 'error');
+        return;
+    }
+
+    // Save email to profile for future convenience
+    try {
+        const savedProfile = JSON.parse(localStorage.getItem('expense_tracker_profile')) || {};
+        savedProfile.email = email;
+        localStorage.setItem('expense_tracker_profile', JSON.stringify(savedProfile));
+    } catch (e) {}
+
+    // Disable button & show loading state
+    if (emailReportBtn) {
+        emailReportBtn.disabled = true;
+        emailReportBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
+    }
+    showReportStatus(`Sending your ${report.monthLabel} report to ${email}...`, '');
+
+    try {
+        // Generate client-side vector PDF base64 so Google Apps Script can attach it directly
+        let pdfBase64 = null;
+        try {
+            const doc = buildPdfDocument(report);
+            if (doc) {
+                pdfBase64 = doc.output('datauristring').split(',')[1];
+            }
+        } catch (pdfErr) {
+            console.warn('[RIPPLE] Client-side PDF generation for email skipped:', pdfErr);
+        }
+
+        const payload = {
+            action: 'send_monthly_report',
+            email: email,
+            month: report.monthStr,
+            monthLabel: report.monthLabel,
+            pdfBase64: pdfBase64
+        };
+
+        // Attempt standard fetch first to capture any permission errors directly from Apps Script
+        let responseParsed = false;
+        try {
+            const res = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'text/plain;charset=utf-8'
+                },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.status === 'error') {
+                    throw new Error(data.message);
+                }
+                responseParsed = true;
+            }
+        } catch (corsOrApiErr) {
+            if (corsOrApiErr.message && (corsOrApiErr.message.includes('permission') || corsOrApiErr.message.includes('MailApp'))) {
+                throw corsOrApiErr;
+            }
+        }
+
+        // If standard CORS redirected opaque, execute with no-cors fallback
+        if (!responseParsed) {
+            await fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: {
+                    'Content-Type': 'text/plain;charset=utf-8'
+                },
+                body: JSON.stringify(payload)
+            });
+        }
+
+        showReportStatus('✅ Sent successfully!', 'success');
+        showToast('✅ Sent successfully!');
+    } catch (err) {
+        console.error('[RIPPLE] Email sending error:', err);
+        if (err.message && (err.message.includes('permission') || err.message.includes('MailApp'))) {
+            showReportStatus('⚠️ <strong>Google Apps Script Authorization Required:</strong><br>In your Google Apps Script editor, run <code>authorizeScript</code> once and click <em>Allow</em> to permit sending emails.', 'error');
+            showToast('⚠️ Apps Script permission required. Run authorizeScript in editor.');
+        } else {
+            showReportStatus('⚠️ Unable to send report: ' + (err.message || 'Please check your connection and try again.'), 'error');
+            showToast('❌ Unable to send report.');
+        }
+    } finally {
+        if (emailReportBtn) {
+            emailReportBtn.disabled = false;
+            emailReportBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send to Email';
+        }
+    }
+}
+
