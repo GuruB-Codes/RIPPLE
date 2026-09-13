@@ -440,23 +440,28 @@ td {
     opacity: 0.5;
 }
 
-/* Bottom Navigation */
+/* Bottom Navigation - Modern Floating Capsule */
 .bottom-nav {
     position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 32px);
+    max-width: 480px;
     background-color: var(--card-bg);
     display: flex;
-    justify-content: space-around;
-    padding: 10px 0 15px;
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-radius: 36px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.04);
+    border: 1px solid rgba(226, 232, 240, 0.9);
     z-index: 100;
-    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, visibility 0.25s ease;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, visibility 0.25s ease;
 }
 
 body.keypad-open .bottom-nav {
-    transform: translateY(120%);
+    transform: translate(-50%, 150%);
     opacity: 0;
     pointer-events: none;
     visibility: hidden;
@@ -464,61 +469,67 @@ body.keypad-open .bottom-nav {
 
 .nav-item {
     display: flex;
-    flex-direction: column;
     align-items: center;
+    justify-content: center;
     text-decoration: none;
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    gap: 5px;
-    transition: var(--transition);
+    color: #475569;
+    padding: 10px 14px;
+    border-radius: 28px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .nav-item i {
-    font-size: 1.25rem;
-    margin-bottom: 2px;
-}
-
-.nav-item.active {
-    color: var(--secondary-color);
-}
-
-.add-btn-wrapper {
-    position: relative;
-    top: -20px;
-}
-
-.add-btn {
-    width: 50px;
-    height: 50px;
-    background-color: var(--primary-color);
-    border-radius: var(--radius-full);
+    font-size: 1.18rem;
     display: flex;
-    justify-content: center;
     align-items: center;
-    color: white;
-    font-size: 1.5rem;
-    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.4);
-    transition: var(--transition);
+    justify-content: center;
+    transition: transform 0.25s ease, color 0.25s ease;
 }
 
-.nav-item:hover .add-btn {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 15px rgba(16, 185, 129, 0.5);
+.nav-item span {
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    display: inline-block;
+    vertical-align: middle;
+    transition: max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, margin 0.3s ease;
+    margin-left: 0;
 }
 
-@media (min-width: 768px) {
-    .bottom-nav {
-        /* On desktop, we could potentially move this to a sidebar, but to stick strictly to mobile-first simple web app, keeping it at bottom or top. For now, bottom nav stays fixed on desktop too but narrower */
-        max-width: 800px;
-        left: 50%;
-        transform: translateX(-50%);
-        border-radius: 20px 20px 0 0;
-    }
+/* Active State - Soft Blue/Indigo Pill Capsule with Label */
+.nav-item.active {
+    background-color: #E8F0FE;
+    color: #1E293B;
+    font-weight: 600;
+    padding: 10px 18px;
+    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.1);
+}
 
-    body.keypad-open .bottom-nav {
-        transform: translate(-50%, 120%);
-    }
+.nav-item.active i {
+    color: #1E293B;
+    transform: scale(1.05);
+}
+
+.nav-item.active span {
+    max-width: 100px;
+    opacity: 1;
+    margin-left: 8px;
+}
+
+.nav-item:not(.active):hover {
+    color: #0F172A;
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+.nav-item:active {
+    transform: scale(0.96);
 }
 
 /* Loader */
@@ -938,21 +949,22 @@ input:checked + .slider:before {
     }
     
     .bottom-nav {
-        padding: 8px 0 10px;
+        bottom: 14px;
+        width: calc(100% - 24px);
+        padding: 6px 8px;
     }
     
     .nav-item {
-        font-size: 0.65rem;
+        padding: 8px 10px;
+        font-size: 0.78rem;
     }
-    
-    .add-btn {
-        width: 45px;
-        height: 45px;
-        font-size: 1.2rem;
+
+    .nav-item.active {
+        padding: 8px 14px;
     }
-    
-    .add-btn-wrapper {
-        top: -15px;
+
+    .nav-item i {
+        font-size: 1.05rem;
     }
 }
 
@@ -3189,5 +3201,27 @@ body.dark-mode .keypad-close-btn {
     color: #94A3B8;
 }
 
+body.dark-mode .bottom-nav {
+    background-color: #1E293B;
+    border-color: #334155;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.2);
+}
 
+body.dark-mode .nav-item {
+    color: #94A3B8;
+}
 
+body.dark-mode .nav-item:not(.active):hover {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #F8FAFC;
+}
+
+body.dark-mode .nav-item.active {
+    background-color: rgba(99, 102, 241, 0.22);
+    color: #F8FAFC;
+    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.35);
+}
+
+body.dark-mode .nav-item.active i {
+    color: #818CF8;
+}
