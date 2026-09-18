@@ -72,8 +72,19 @@ function setupSheet() {
       'Category',
       'Amount',
       'Type',
-      'Notes'
+      'Notes',
+      'Account',
+      'ToAccount'
     ]);
+  } else {
+    // Check if headers need V2 upgrade (columns F and G for Account and ToAccount)
+    const lastCol = sheet.getLastColumn();
+    if (lastCol < 6) {
+      sheet.getRange(1, 6).setValue('Account');
+    }
+    if (lastCol < 7) {
+      sheet.getRange(1, 7).setValue('ToAccount');
+    }
   }
 }
 
@@ -108,7 +119,9 @@ function doGet() {
       Category: data[i][1],
       Amount: parseFloat(data[i][2]) || 0,
       Type: data[i][3],
-      Notes: data[i][4] || ''
+      Notes: data[i][4] || '',
+      Account: data[i][5] || 'Cash',
+      ToAccount: data[i][6] || ''
     });
   }
 
@@ -151,10 +164,13 @@ function doPost(e) {
     // ADD OR UPDATE
     // Log parsed request data
     Logger.log('Parsed requestData: ' + JSON.stringify(requestData));
-    const category = requestData.category || requestData.Category;
+    const category = requestData.category || requestData.Category || '';
     const amount = parseFloat(requestData.amount || requestData.Amount || 0);
-    const type = requestData.type || requestData.Type;
+    const type = requestData.type || requestData.Type || 'Expense';
     const notes = requestData.notes || requestData.Notes || '';
+    const account = requestData.account || requestData.Account || 'Cash';
+    const toAccount = requestData.toAccount || requestData.ToAccount || '';
+
     // Transaction date handling: expect date in ISO format or already formatted
     const rawDate = requestData.date || requestData.Date || new Date();
     // Ensure date is in dd-MMM-yyyy format for the sheet
@@ -174,24 +190,32 @@ function doPost(e) {
       return d;
     })(rawDate);
 
-
     const rows = sheet.getDataRange().getValues();
     let existingRow = -1;
-    for (let i = 1; i < rows.length; i++) {
-      let rDate = rows[i][0];
-      if (rDate instanceof Date) {
-        rDate = Utilities.formatDate(rDate, Session.getScriptTimeZone(), 'dd-MMM-yyyy');
-      }
-      const rowDate = String(rDate).trim().toLowerCase();
-      const rowCategory = String(rows[i][1]).trim().toLowerCase();
-      const rowType = String(rows[i][3]).trim().toLowerCase();
-      if (
-        rowDate === String(txDate).trim().toLowerCase() &&
-        rowCategory === String(category).trim().toLowerCase() &&
-        rowType === String(type).trim().toLowerCase()
-      ) {
-        existingRow = i + 1;
-        break;
+
+    // NEVER combine transfer transactions: each transfer to/from a person or account is a distinct transaction
+    const isTransferTx = String(type).trim().toLowerCase() === 'transfer' || String(category).trim().toLowerCase() === 'transfer';
+
+    if (!isTransferTx) {
+      for (let i = 1; i < rows.length; i++) {
+        let rDate = rows[i][0];
+        if (rDate instanceof Date) {
+          rDate = Utilities.formatDate(rDate, Session.getScriptTimeZone(), 'dd-MMM-yyyy');
+        }
+        const rowDate = String(rDate).trim().toLowerCase();
+        const rowCategory = String(rows[i][1]).trim().toLowerCase();
+        const rowType = String(rows[i][3]).trim().toLowerCase();
+        const rowAccount = String(rows[i][5] || 'Cash').trim().toLowerCase();
+
+        if (
+          rowDate === String(txDate).trim().toLowerCase() &&
+          rowCategory === String(category).trim().toLowerCase() &&
+          rowType === String(type).trim().toLowerCase() &&
+          rowAccount === String(account).trim().toLowerCase()
+        ) {
+          existingRow = i + 1;
+          break;
+        }
       }
     }
 
@@ -201,8 +225,8 @@ function doPost(e) {
       sheet.getRange(existingRow, 3).setValue(currentAmount + amount);
       Logger.log('Updated existing row #' + existingRow + ' amount to ' + (currentAmount + amount));
     } else {
-      sheet.appendRow([txDate, category, amount, type, notes]);
-      Logger.log('Appended new row: ' + [txDate, category, amount, type, notes]);
+      sheet.appendRow([txDate, category, amount, type, notes, account, toAccount]);
+      Logger.log('Appended new row: ' + [txDate, category, amount, type, notes, account, toAccount]);
     }
 
     return ContentService
@@ -312,7 +336,7 @@ function handleSendMonthlyReport(requestData, sheet) {
       if (rType.toLowerCase() === 'income') {
         totalIncome += rAmount;
         incomeList.push(item);
-      } else {
+      } else if (rType.toLowerCase() === 'expense') {
         totalExpense += rAmount;
         expenseList.push(item);
         categoryTotals[rCategory] = (categoryTotals[rCategory] || 0) + rAmount;

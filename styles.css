@@ -138,6 +138,11 @@ body {
     color: var(--expense-color);
 }
 
+.transfer-card .card-icon {
+    background-color: rgba(99, 102, 241, 0.1);
+    color: var(--secondary-color);
+}
+
 .savings-card .card-icon {
     background-color: rgba(99, 102, 241, 0.1);
     color: var(--secondary-color);
@@ -285,6 +290,12 @@ input:focus, select:focus {
 
 .type-toggle input[type="radio"]:checked + .toggle-btn.income-toggle {
     background-color: var(--income-color);
+    color: white;
+    box-shadow: var(--shadow-sm);
+}
+
+.type-toggle input[type="radio"]:checked + .toggle-btn.transfer-toggle {
+    background-color: var(--secondary-color);
     color: white;
     box-shadow: var(--shadow-sm);
 }
@@ -441,6 +452,14 @@ td {
     padding: 10px 0 15px;
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
     z-index: 100;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, visibility 0.25s ease;
+}
+
+body.keypad-open .bottom-nav {
+    transform: translateY(120%);
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
 }
 
 .nav-item {
@@ -495,6 +514,10 @@ td {
         left: 50%;
         transform: translateX(-50%);
         border-radius: 20px 20px 0 0;
+    }
+
+    body.keypad-open .bottom-nav {
+        transform: translate(-50%, 120%);
     }
 }
 
@@ -1103,7 +1126,7 @@ input:checked + .slider:before {
 /* Month-over-Month Comparison */
 .mom-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
     gap: 12px;
 }
 
@@ -1134,6 +1157,10 @@ input:checked + .slider:before {
 
 .mom-down {
     color: var(--income-color);
+}
+
+.mom-neutral {
+    color: var(--secondary-color);
 }
 
 /* Expense Category Breakdown */
@@ -1231,4 +1258,1936 @@ body.dark-mode .report-status.error {
         grid-template-columns: 1fr;
     }
 }
+
+/* ==========================================================================
+   RIPPLE V2 ENHANCEMENTS: ACCOUNTS, CUSTOM CATEGORIES, TRANSFERS & MODALS
+   ========================================================================== */
+
+/* 1. Dashboard Month & Financial Summary Bar (Image 2 style) */
+.dashboard-month-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #FBC02D;
+    background: linear-gradient(135deg, #FDD835 0%, #FBC02D 100%);
+    border-radius: 16px;
+    padding: 12px 16px;
+    margin: 12px 0 20px 0;
+    box-shadow: 0 4px 16px rgba(251, 192, 45, 0.25);
+    gap: 12px;
+    position: relative;
+    user-select: none;
+}
+
+.dashboard-month-pill {
+    position: relative;
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    min-width: 80px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.dashboard-month-pill:hover {
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.dashboard-month-pill:active {
+    transform: scale(0.97);
+}
+
+.dashboard-month-picker-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 5;
+}
+
+.month-pill-content {
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+}
+
+.month-pill-year {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: rgba(50, 35, 10, 0.75);
+    line-height: 1.1;
+}
+
+.month-pill-month {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #211707;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.month-pill-month i {
+    font-size: 0.65rem;
+    opacity: 0.7;
+    margin-left: 2px;
+}
+
+.dashboard-stats-row {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: space-around;
+    gap: 8px;
+}
+
+.dashboard-stat-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    flex: 1;
+}
+
+.dashboard-stat-col .stat-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #63470e;
+    margin-bottom: 2px;
+    letter-spacing: 0.2px;
+}
+
+.dashboard-stat-col .stat-value {
+    font-size: 1.22rem;
+    font-weight: 700;
+    color: #1a1205;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.dashboard-stat-col.balance-col .stat-value.negative-balance {
+    color: #991b1b;
+}
+
+@media (max-width: 400px) {
+    .dashboard-month-bar {
+        padding: 10px 12px;
+        gap: 8px;
+    }
+    .dashboard-month-pill {
+        padding: 6px 10px;
+        min-width: 70px;
+    }
+    .month-pill-month {
+        font-size: 1rem;
+    }
+    .dashboard-stat-col .stat-label {
+        font-size: 0.78rem;
+    }
+    .dashboard-stat-col .stat-value {
+        font-size: 1.05rem;
+    }
+}
+
+/* Net Worth Card in Accounts Settings */
+.account-net-worth-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(16, 185, 129, 0.08));
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+
+.account-net-worth-tag {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: block;
+}
+
+.account-net-worth-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin: 2px 0 0 0;
+}
+
+.account-net-worth-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: rgba(79, 70, 229, 0.1);
+    color: var(--primary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+}
+
+/* 2. Accounts Summary on Dashboard (if shown) */
+.accounts-summary-card {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.06), rgba(16, 185, 129, 0.06));
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    padding: 18px;
+    margin-bottom: 20px;
+}
+
+.accounts-summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.accounts-section-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--secondary-color);
+    text-transform: uppercase;
+}
+
+.accounts-net-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-top: 2px;
+}
+
+.accounts-horizontal-scroll {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 6px 2px 8px 2px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+.accounts-horizontal-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+.account-card-chip {
+    min-width: 160px;
+    max-width: 200px;
+    padding: 12px 14px;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: var(--transition);
+    box-shadow: var(--shadow-sm);
+}
+
+.account-card-chip:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--secondary-color);
+}
+
+.account-chip-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.account-chip-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.account-chip-name {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.account-chip-balance {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-top: 2px;
+}
+
+.account-chip-negative {
+    color: var(--expense-color) !important;
+}
+
+/* 2. Subviews Header & Small Primary Buttons */
+.subview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.btn-primary-sm {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: var(--transition);
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-primary-sm:hover {
+    background-color: #059669;
+    transform: translateY(-1px);
+}
+
+.btn-text-action {
+    background: none;
+    border: none;
+    color: var(--secondary-color);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: var(--transition);
+}
+
+.btn-text-action:hover {
+    color: #4338CA;
+    text-decoration: underline;
+}
+
+/* 3. Category Type Tabs (Expense vs Income) */
+.category-type-tabs {
+    display: flex;
+    gap: 6px;
+    background-color: var(--bg-color);
+    padding: 4px;
+    border-radius: var(--radius-md);
+    margin-bottom: 16px;
+}
+
+.cat-type-tab {
+    flex: 1;
+    padding: 10px 14px;
+    border: none;
+    background: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.cat-type-tab.active {
+    background-color: var(--card-bg);
+    color: var(--text-main);
+    box-shadow: var(--shadow-sm);
+}
+
+/* 4. Categories Management List */
+.categories-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.category-manage-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    transition: var(--transition);
+}
+
+.category-manage-item:hover {
+    border-color: rgba(99, 102, 241, 0.3);
+}
+
+.category-item-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cat-icon-circle {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+}
+
+.category-item-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-main);
+}
+
+.category-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.reorder-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background-color: var(--card-bg);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    transition: var(--transition);
+}
+
+.reorder-btn:hover:not(:disabled) {
+    border-color: var(--secondary-color);
+    color: var(--secondary-color);
+}
+
+.reorder-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.action-btn-edit {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background-color: var(--card-bg);
+    color: var(--secondary-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    transition: var(--transition);
+}
+
+.action-btn-edit:hover {
+    background-color: rgba(99, 102, 241, 0.1);
+}
+
+.action-btn-del {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background-color: var(--card-bg);
+    color: var(--expense-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    transition: var(--transition);
+}
+
+.action-btn-del:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* 5. Accounts Settings List */
+.accounts-settings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.account-settings-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    transition: var(--transition);
+}
+
+.account-settings-card:hover {
+    border-color: rgba(99, 102, 241, 0.3);
+}
+
+.account-card-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.acc-icon-circle {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+}
+
+.account-type-tag {
+    display: inline-block;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--secondary-color);
+    margin-top: 3px;
+}
+
+.account-card-balance-info {
+    text-align: right;
+    margin-right: 12px;
+}
+
+.account-current-bal {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.account-init-bal {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* 6. History Table & Filters */
+.history-filters-row {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+}
+
+.history-account-filter {
+    flex: 1;
+    min-width: 130px;
+    padding: 10px 12px;
+    margin-bottom: 0;
+}
+
+.account-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.78rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(99, 102, 241, 0.08);
+    color: var(--secondary-color);
+    font-weight: 500;
+    border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+.amount-transfer {
+    color: var(--secondary-color);
+    font-weight: 600;
+}
+
+.transfer-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+    color: var(--secondary-color);
+    font-size: 0.85rem;
+}
+
+/* 7. Modals (Category & Account Management) */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(15, 23, 42, 0.65);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    backdrop-filter: blur(4px);
+}
+
+.modal-backdrop.hidden {
+    display: none !important;
+}
+
+.modal-dialog {
+    background-color: var(--card-bg);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 440px;
+    max-height: 88vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+    padding: 22px;
+    animation: modalIn 0.25s ease-out;
+}
+
+@keyframes modalIn {
+    from { opacity: 0; transform: scale(0.95) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
+
+.modal-header h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 1.6rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
+}
+
+.modal-close-btn:hover {
+    color: var(--text-main);
+}
+
+.color-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.color-swatch {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 0.15s ease;
+}
+
+.color-swatch:hover {
+    transform: scale(1.15);
+}
+
+.color-swatch.selected {
+    border-color: var(--text-main);
+    transform: scale(1.2);
+    box-shadow: 0 0 0 2px var(--card-bg);
+}
+
+.custom-color-input {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    padding: 0;
+    background: none;
+}
+
+.icon-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background-color: var(--bg-color);
+    margin-top: 6px;
+}
+
+.icon-option {
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--text-muted);
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    font-size: 1rem;
+    transition: var(--transition);
+}
+
+.icon-option:hover {
+    color: var(--secondary-color);
+    border-color: var(--secondary-color);
+}
+
+.icon-option.selected {
+    background-color: var(--secondary-color);
+    color: white;
+    border-color: var(--secondary-color);
+    transform: scale(1.05);
+}
+
+.modal-preview-box {
+    background-color: var(--bg-color);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    margin: 16px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.category-badge-preview, .account-card-preview {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.btn-secondary {
+    padding: 10px 18px;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-secondary:hover {
+    background-color: var(--border-color);
+}
+
+/* 8. Dark Mode Overrides for V2 Elements */
+body.dark-mode .accounts-summary-card {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(16, 185, 129, 0.15));
+    border-color: rgba(99, 102, 241, 0.3);
+}
+
+body.dark-mode .account-card-chip,
+body.dark-mode .category-manage-item,
+body.dark-mode .account-settings-card {
+    background-color: #1E293B;
+    border-color: #334155;
+}
+
+body.dark-mode .account-badge {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: rgba(99, 102, 241, 0.4);
+    color: #A5B4FC;
+}
+
+body.dark-mode .transfer-card .card-icon {
+    background-color: rgba(99, 102, 241, 0.2);
+    color: #A5B4FC;
+}
+
+body.dark-mode .icon-option {
+    background-color: #1E293B;
+    border-color: #334155;
+    color: #94A3B8;
+}
+
+body.dark-mode .icon-option.selected {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+body.dark-mode .icon-selector-grid,
+body.dark-mode .modal-preview-box {
+    background-color: #0F172A;
+    border-color: #334155;
+}
+
+body.dark-mode .reorder-btn,
+body.dark-mode .action-btn-edit,
+body.dark-mode .action-btn-del {
+    background-color: #1E293B;
+    border-color: #334155;
+}
+
+body.dark-mode .color-swatch.selected {
+    border-color: #FFFFFF;
+}
+
+body.dark-mode .dashboard-month-bar {
+    background: linear-gradient(135deg, #241e12 0%, #1c180e 100%);
+    border: 1px solid rgba(251, 192, 45, 0.28);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+body.dark-mode .dashboard-month-pill {
+    background: rgba(251, 192, 45, 0.12);
+}
+
+body.dark-mode .dashboard-month-pill:hover {
+    background: rgba(251, 192, 45, 0.18);
+}
+
+body.dark-mode .month-pill-year {
+    color: rgba(251, 192, 45, 0.75);
+}
+
+body.dark-mode .month-pill-month {
+    color: #FDD835;
+}
+
+body.dark-mode .dashboard-stat-col .stat-label {
+    color: rgba(251, 192, 45, 0.85);
+}
+
+body.dark-mode .dashboard-stat-col .stat-value {
+    color: #f8fafc;
+}
+
+body.dark-mode .dashboard-stat-col.balance-col .stat-value.negative-balance {
+    color: #f87171;
+}
+
+body.dark-mode .account-net-worth-card {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(16, 185, 129, 0.15));
+    border-color: rgba(99, 102, 241, 0.3);
+}
+
+@media (max-width: 600px) {
+    .history-filters-row {
+        flex-direction: column;
+    }
+
+    .account-card-chip {
+        min-width: 140px;
+    }
+
+    .modal-dialog {
+        padding: 18px;
+    }
+}
+
+/* ==========================================================================
+   RIPPLE V2: CATEGORY GRID & NUMERIC KEYPAD ENTRY (Image 2 & 3 Workflow)
+   ========================================================================== */
+
+.add-view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 0 4px;
+}
+
+.add-cancel-btn {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+}
+
+.add-cancel-btn:hover {
+    color: var(--text-main);
+}
+
+.add-view-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin: 0;
+}
+
+.add-quick-manage {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+}
+
+.add-quick-manage:hover {
+    color: var(--secondary-color);
+}
+
+/* 3-Way Type Toggle */
+.add-type-toggle {
+    display: flex;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 28px;
+    padding: 4px;
+    margin-bottom: 22px;
+    box-shadow: var(--shadow-sm);
+}
+
+.add-type-tab {
+    flex: 1;
+    text-align: center;
+    padding: 9px 12px;
+    border: none;
+    background: transparent;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    border-radius: 24px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.add-type-tab.active {
+    background-color: var(--text-main);
+    color: var(--card-bg);
+    box-shadow: var(--shadow-md);
+}
+
+/* Category Grid (4 Columns, Image 2 style) */
+.add-category-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px 8px;
+    margin-bottom: 20px;
+    padding: 4px;
+    padding-bottom: 380px;
+}
+
+.category-grid-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.15s ease;
+}
+
+.category-grid-item:active {
+    transform: scale(0.92);
+}
+
+.category-circle-icon {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    color: var(--text-main);
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    margin-bottom: 6px;
+    position: relative;
+}
+
+.category-grid-item:hover .category-circle-icon {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+/* Selected Category State (Image 3 yellow/highlight circle) */
+.category-grid-item.selected .category-circle-icon {
+    background-color: #FDD835;
+    color: #1a1205;
+    border-color: #FBC02D;
+    transform: scale(1.08);
+    box-shadow: 0 4px 16px rgba(251, 192, 45, 0.45);
+}
+
+.category-grid-label {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-main);
+    line-height: 1.2;
+    max-width: 72px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.category-grid-item.selected .category-grid-label {
+    font-weight: 700;
+}
+
+/* Add Category / Settings Tile */
+.category-grid-item.add-new-category .category-circle-icon {
+    border: 1.5px dashed var(--text-muted);
+    background: transparent;
+    color: var(--text-muted);
+    box-shadow: none;
+}
+
+.category-grid-item.add-new-category:hover .category-circle-icon {
+    border-color: var(--secondary-color);
+    color: var(--secondary-color);
+}
+
+/* Transfer Section (Debited, Credited & Self Transfer) */
+.add-transfer-section {
+    margin-bottom: 24px;
+    padding-bottom: 360px;
+}
+
+/* Sub-Mode Switcher Bar */
+.transfer-submode-bar {
+    display: flex;
+    gap: 8px;
+    background: var(--bg-color);
+    padding: 5px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    margin-bottom: 16px;
+}
+
+.transfer-submode-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.transfer-submode-btn:hover {
+    color: var(--text-main);
+}
+
+.transfer-submode-btn.active {
+    background: var(--card-bg);
+    color: var(--text-main);
+    box-shadow: var(--shadow-sm);
+}
+
+.transfer-submode-btn[data-submode="debited"].active {
+    color: #EF4444;
+    border-bottom: 2px solid #EF4444;
+}
+
+.transfer-submode-btn[data-submode="credited"].active {
+    color: #10B981;
+    border-bottom: 2px solid #10B981;
+}
+
+.transfer-submode-btn[data-submode="self"].active {
+    color: #6366F1;
+    border-bottom: 2px solid #6366F1;
+}
+
+/* Transfer Flow Container & Cards */
+.transfer-flow-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.transfer-party-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition);
+}
+
+.transfer-party-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.transfer-badge-pill {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 3px 9px;
+    border-radius: 6px;
+}
+
+.transfer-badge-pill.from-badge {
+    background: rgba(79, 70, 229, 0.12);
+    color: var(--secondary-color);
+    border: 1px solid rgba(79, 70, 229, 0.25);
+}
+
+.transfer-badge-pill.to-badge {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10B981;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.transfer-party-hint {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.transfer-acc-select {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.transfer-acc-select:hover {
+    border-color: var(--secondary-color);
+    background: rgba(79, 70, 229, 0.04);
+}
+
+.acc-pill-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    color: white;
+    background-color: var(--secondary-color);
+    flex-shrink: 0;
+}
+
+.acc-pill-name {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text-main);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Person Inputs */
+.transfer-person-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.transfer-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 10px 14px;
+    transition: var(--transition);
+}
+
+.transfer-input-wrap:focus-within {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.transfer-input-wrap i {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    width: 16px;
+    text-align: center;
+}
+
+.transfer-field-input {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    width: 100%;
+}
+
+.transfer-field-input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+/* Payment Mode Selector */
+.transfer-mode-selector {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border-color);
+}
+
+.mode-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.mode-chips {
+    display: flex;
+    gap: 6px;
+}
+
+.mode-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-color);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.mode-chip:hover {
+    border-color: var(--secondary-color);
+    color: var(--text-main);
+}
+
+.mode-chip.active {
+    background: var(--secondary-color);
+    color: white;
+    border-color: var(--secondary-color);
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+}
+
+/* Direction Arrow */
+.transfer-flow-arrow {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: -6px 0;
+    z-index: 2;
+}
+
+.flow-arrow-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: 1.5px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--secondary-color);
+    font-size: 0.85rem;
+    transition: transform 0.2s ease;
+}
+
+/* Keypad Bottom Sheet (Image 3 design) */
+.keypad-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    background: var(--card-bg);
+    border-top: 1px solid var(--border-color);
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+    padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px)) 16px;
+    box-sizing: border-box;
+    z-index: 1005;
+    animation: slideUpKeypad 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUpKeypad {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.keypad-sheet.hidden {
+    display: none !important;
+}
+
+/* Transfer Amount Card & Save Button */
+.transfer-amount-card {
+    background: var(--card-bg);
+    border: 1.5px dashed var(--secondary-color);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: var(--transition);
+    margin-top: 4px;
+}
+
+.transfer-amount-card:hover {
+    background: rgba(79, 70, 229, 0.04);
+    border-style: solid;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+.transfer-amount-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.transfer-amount-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--secondary-color);
+    letter-spacing: 0.5px;
+}
+
+.transfer-tap-hint {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg-color);
+    padding: 2px 8px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+}
+
+.transfer-amount-display-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.transfer-amount-sym {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.transfer-amount-number {
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: var(--text-main);
+    letter-spacing: -0.5px;
+}
+
+.transfer-main-submit-btn {
+    width: 100%;
+    margin-top: 14px;
+    padding: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+/* Keypad Backdrop */
+.keypad-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    z-index: 1000;
+}
+
+/* Keypad Header: Account selector (Left) & Amount + Close Button (Right) */
+.keypad-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.keypad-header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.keypad-close-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: var(--bg-color);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.keypad-close-btn:hover {
+    color: var(--text-main);
+    border-color: var(--secondary-color);
+    background: rgba(79, 70, 229, 0.08);
+}
+
+.keypad-account-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.keypad-account-pill:hover {
+    border-color: var(--secondary-color);
+    background: rgba(79, 70, 229, 0.05);
+}
+
+.keypad-acc-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--secondary-color);
+    color: white;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.keypad-amount-box {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.keypad-currency {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.keypad-amount-val {
+    font-size: 2.1rem;
+    font-weight: 700;
+    color: var(--text-main);
+    letter-spacing: -0.03em;
+    font-family: inherit;
+    line-height: 1.1;
+}
+
+/* Keypad Note Input */
+.keypad-note-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+}
+
+.keypad-note-input {
+    border: none;
+    background: transparent;
+    outline: none;
+    width: 100%;
+    font-size: 0.88rem;
+    color: var(--text-main);
+    font-family: inherit;
+}
+
+.keypad-note-input::placeholder {
+    color: var(--text-muted);
+}
+
+/* Keypad 4x4 Grid */
+.keypad-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.key-btn {
+    height: 52px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background-color: var(--card-bg);
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.1s ease;
+    box-shadow: var(--shadow-sm);
+    font-family: inherit;
+}
+
+.key-btn:active {
+    transform: scale(0.93);
+    background-color: var(--border-color);
+}
+
+.key-btn.key-op {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: var(--secondary-color);
+    background-color: var(--bg-color);
+}
+
+.key-btn.key-date {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.25);
+    position: relative;
+    padding: 4px;
+}
+
+.key-btn.key-date i {
+    font-size: 0.85rem;
+}
+
+.hidden-date-picker {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 5;
+}
+
+.key-btn.key-backspace {
+    font-size: 1.2rem;
+    color: var(--text-muted);
+    background-color: var(--bg-color);
+}
+
+/* Submit Checkmark Button (Image 3) */
+.key-btn.key-confirm {
+    background-color: #10B981;
+    color: white;
+    border-color: #10B981;
+    font-size: 1.4rem;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+}
+
+.key-btn.key-confirm:active {
+    background-color: #059669;
+    transform: scale(0.93);
+}
+
+/* Responsive keypad scaling for smaller device heights */
+@media (max-height: 700px) {
+    .keypad-sheet {
+        padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0px)) 14px;
+    }
+    .keypad-header-row {
+        margin-bottom: 6px;
+    }
+    .keypad-amount-val {
+        font-size: 1.8rem;
+    }
+    .keypad-note-row {
+        margin-bottom: 8px;
+        padding: 6px 10px;
+    }
+    .key-btn {
+        height: 44px;
+        font-size: 1.2rem;
+    }
+    .key-btn.key-date {
+        font-size: 0.68rem;
+    }
+}
+
+@media (max-height: 560px) {
+    .keypad-sheet {
+        max-height: 96vh;
+        overflow-y: auto;
+        padding: 6px 10px calc(8px + env(safe-area-inset-bottom, 0px)) 10px;
+    }
+    .key-btn {
+        height: 36px;
+        font-size: 1rem;
+    }
+}
+
+/* Quick Account Picker Bottom Sheet (Fixed to bottom of screen) */
+.keypad-account-popover {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.keypad-account-popover.hidden {
+    display: none !important;
+}
+
+.popover-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.popover-content {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    background: var(--card-bg);
+    border-radius: 24px 24px 0 0;
+    padding: 12px 20px 28px 20px;
+    z-index: 2;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.28);
+    border-top: 1px solid var(--border-color);
+    animation: slideUpKeypad 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+    margin: 0 auto;
+}
+
+.popover-drag-bar {
+    width: 38px;
+    height: 4px;
+    background: var(--border-color);
+    border-radius: 4px;
+    margin: 0 auto 12px auto;
+}
+
+.popover-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.popover-title {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--text-main);
+    letter-spacing: -0.2px;
+}
+
+.popover-close-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: var(--bg-color);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: var(--transition);
+}
+
+.popover-close-btn:hover {
+    color: var(--text-main);
+    border-color: var(--secondary-color);
+    background: rgba(79, 70, 229, 0.08);
+}
+
+.popover-accounts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 48vh;
+    overflow-y: auto;
+}
+
+.popover-acc-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.popover-acc-item:hover,
+.popover-acc-item.selected {
+    border-color: var(--secondary-color);
+    background: rgba(79, 70, 229, 0.08);
+}
+
+.popover-acc-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.popover-acc-bal {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+/* Dark Mode Overrides for Category Grid & Keypad */
+body.dark-mode .add-type-tab.active {
+    background-color: #38BDF8;
+    color: #0F172A;
+}
+
+body.dark-mode .category-circle-icon {
+    background-color: #1E293B;
+    border-color: #334155;
+    color: #F8FAFC;
+}
+
+body.dark-mode .category-grid-item.selected .category-circle-icon {
+    background-color: #FDD835;
+    color: #0F172A;
+    border-color: #FBC02D;
+    box-shadow: 0 4px 18px rgba(251, 192, 45, 0.35);
+}
+
+body.dark-mode .keypad-sheet {
+    background: #0F172A;
+    border-color: #334155;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.6);
+}
+
+body.dark-mode .keypad-account-pill {
+    background: #1E293B;
+    border-color: #334155;
+    color: #F8FAFC;
+}
+
+body.dark-mode .keypad-note-row {
+    background: #1E293B;
+    border-color: #334155;
+}
+
+body.dark-mode .key-btn {
+    background-color: #1E293B;
+    border-color: #334155;
+    color: #F8FAFC;
+}
+
+body.dark-mode .key-btn:active {
+    background-color: #334155;
+}
+
+body.dark-mode .key-btn.key-op {
+    background-color: #0F172A;
+    color: #818CF8;
+}
+
+body.dark-mode .key-btn.key-backspace {
+    background-color: #0F172A;
+    color: #94A3B8;
+}
+
+body.dark-mode .popover-content {
+    background: #0F172A;
+    border-color: #334155;
+}
+
+body.dark-mode .popover-drag-bar {
+    background: #334155;
+}
+
+body.dark-mode .popover-close-btn {
+    background: #1E293B;
+    border-color: #334155;
+    color: #94A3B8;
+}
+
+body.dark-mode .popover-acc-item {
+    background: #1E293B;
+    border-color: #334155;
+}
+
+body.dark-mode .transfer-submode-bar {
+    background: #1E293B;
+    border-color: #334155;
+}
+
+body.dark-mode .transfer-submode-btn.active {
+    background: #0F172A;
+    color: #F8FAFC;
+}
+
+body.dark-mode .transfer-party-card {
+    background: #0F172A;
+    border-color: #334155;
+}
+
+body.dark-mode .transfer-acc-select,
+body.dark-mode .transfer-input-wrap {
+    background: #1E293B;
+    border-color: #334155;
+}
+
+body.dark-mode .transfer-field-input {
+    color: #F8FAFC;
+}
+
+body.dark-mode .mode-chip {
+    background: #1E293B;
+    border-color: #334155;
+    color: #94A3B8;
+}
+
+body.dark-mode .mode-chip.active {
+    background: #6366F1;
+    color: #FFFFFF;
+    border-color: #6366F1;
+}
+
+body.dark-mode .flow-arrow-circle {
+    background: #0F172A;
+    border-color: #334155;
+    color: #818CF8;
+}
+
+body.dark-mode .transfer-amount-card {
+    background: #0F172A;
+    border-color: #818CF8;
+}
+
+body.dark-mode .transfer-amount-card:hover {
+    background: rgba(129, 140, 248, 0.08);
+}
+
+body.dark-mode .transfer-tap-hint {
+    background: #1E293B;
+    border-color: #334155;
+    color: #94A3B8;
+}
+
+body.dark-mode .keypad-close-btn {
+    background: #1E293B;
+    border-color: #334155;
+    color: #94A3B8;
+}
+
+
 
