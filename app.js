@@ -1,6 +1,6 @@
 // --- CONFIGURATION ---
 // REPLACE THIS URL WITH YOUR GOOGLE APPS SCRIPT WEB APP URL
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhz5r6NEYTTyUt9760qtbgO6ikehapi5ltSdU3mfVtoUXQTYUGNIzanJKABSHTNrAQ/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxZo2gjrNI1f-dVQzDZUh-6SjuByb_mk8KAMhvUq7M9fpN0Foa1dc60UtwmCUVXe4LZ/exec';
 
 // --- CONSTANTS & MONTH MAPPINGS ---
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dateInput) {
         dateInput.value = `${yyyy}-${mm}-${dd}`;
     }
-    
+
     // Set default month filter to current month (YYYY-MM)
     if (historyMonthFilter) {
         historyMonthFilter.value = `${yyyy}-${mm}`;
@@ -881,7 +881,7 @@ async function submitKeypadTransaction() {
                 date: dateStr,
                 category: 'Transfer',
                 amount: finalAmount,
-                type: 'Transfer',
+                type: 'Expense',
                 account: addSelectedAccount,
                 toAccount: recipientName,
                 notes: fullNotes
@@ -912,7 +912,7 @@ async function submitKeypadTransaction() {
                 date: dateStr,
                 category: 'Transfer',
                 amount: finalAmount,
-                type: 'Transfer',
+                type: 'Income',
                 account: senderName,
                 toAccount: addSelectedToAccount,
                 notes: fullNotes
@@ -1092,6 +1092,55 @@ function sortTransactions() {
     });
 }
 
+// Transaction Classification helper: maps transactions (including Debited/Credited transfers) to 'Expense', 'Income', or 'Self'
+function getTransactionClassification(t) {
+    if (!t) return 'Expense';
+    const type = String(t.Type || '').trim().toLowerCase();
+    const category = String(t.Category || '').trim().toLowerCase();
+    const notes = String(t.Notes || '').trim().toLowerCase();
+
+    // 1. Explicit type
+    if (type === 'income') return 'Income';
+    if (type === 'expense') return 'Expense';
+
+    // 2. Transfer type or category handling
+    if (type === 'transfer' || category === 'transfer') {
+        const from = String(t.Account || '').trim().toLowerCase();
+        const to = String(t.ToAccount || '').trim().toLowerCase();
+        const ownedAccounts = (accounts || []).map(a => String(a.name || '').trim().toLowerCase());
+
+        const isFromOwned = ownedAccounts.includes(from);
+        const isToOwned = to && ownedAccounts.includes(to);
+
+        // Self transfer between user's own accounts
+        if (isFromOwned && isToOwned && from !== to) {
+            return 'Self';
+        }
+
+        // Debited transfer: paid from user's account to an external person
+        if (isFromOwned && !isToOwned) {
+            return 'Expense';
+        }
+
+        // Credited transfer: received into user's account from an external person
+        if (!isFromOwned && isToOwned) {
+            return 'Income';
+        }
+
+        // Check notes clues
+        if (notes.includes('debited') || notes.includes('paid to') || notes.includes('sent to')) return 'Expense';
+        if (notes.includes('credited') || notes.includes('received from')) return 'Income';
+        if (notes.includes('self transfer') || notes.includes('self')) return 'Self';
+
+        if (isFromOwned) return 'Expense';
+        if (isToOwned) return 'Income';
+
+        return 'Expense';
+    }
+
+    return 'Expense';
+}
+
 // --- LOCAL PERSISTENCE & LIFECYCLE ---
 
 function saveTransactionsToCache() {
@@ -1104,6 +1153,16 @@ function saveTransactionsToCache() {
 
 function loadCachedTransactions() {
     try {
+        const cachedUrl = localStorage.getItem('ripple_cached_script_url');
+        if (cachedUrl && cachedUrl !== SCRIPT_URL) {
+            // Script URL changed: invalidate old cached transactions
+            localStorage.removeItem(CACHE_TRANSACTIONS_KEY);
+            localStorage.setItem('ripple_cached_script_url', SCRIPT_URL);
+            transactions = [];
+            return false;
+        }
+        localStorage.setItem('ripple_cached_script_url', SCRIPT_URL);
+
         const cached = localStorage.getItem(CACHE_TRANSACTIONS_KEY);
         if (cached) {
             const parsed = JSON.parse(cached);
@@ -1189,7 +1248,7 @@ async function fetchTransactions(showLoading = true) {
 
         if (Array.isArray(data) || data.status === 'success' || data.success === true || Array.isArray(data.data)) {
             const rawTransactions = Array.isArray(data) ? data : (data.data || []);
-            
+
             transactions = rawTransactions.map(t => {
                 return {
                     rowId: t.rowId, // Google Sheets row index
@@ -1205,9 +1264,9 @@ async function fetchTransactions(showLoading = true) {
 
             sortTransactions();
             saveTransactionsToCache();
-            
+
             debugLog('Transactions synced', transactions.length);
-            
+
             updateDashboard();
             renderHistoryTable();
             updateAnalytics();
@@ -1250,9 +1309,9 @@ async function saveTransactionToCloud(transaction) {
     // --- OPTIMISTIC UI UPDATE ---
     let existingTx = null;
     if (!isTransfer) {
-        existingTx = transactions.find(t => 
-            formatDateDisplay(t.Date).toLowerCase() === normalizedDate.toLowerCase() && 
-            String(t.Category || '').trim().toLowerCase() === String(transaction.category || '').trim().toLowerCase() && 
+        existingTx = transactions.find(t =>
+            formatDateDisplay(t.Date).toLowerCase() === normalizedDate.toLowerCase() &&
+            String(t.Category || '').trim().toLowerCase() === String(transaction.category || '').trim().toLowerCase() &&
             String(t.Type || '').trim().toLowerCase() === String(txType).trim().toLowerCase() &&
             String(t.Account || 'Cash').trim().toLowerCase() === String(txAccount).trim().toLowerCase()
         );
@@ -1359,7 +1418,7 @@ async function deleteTransaction(index) {
     if (!confirm('Are you sure you want to delete this transaction?')) return;
 
     const transaction = transactions[index];
-    
+
     if (!transaction.rowId) {
         showToast('⚠️ Cannot delete: No row ID found. Try refreshing the page.');
         return;
@@ -1377,7 +1436,7 @@ async function deleteTransaction(index) {
         action: 'delete',
         rowId: transaction.rowId
     };
-    
+
     // Background sync
     fetch(SCRIPT_URL, {
         method: 'POST',
@@ -1464,8 +1523,9 @@ function calculateSummaries(filteredTransactions) {
 
     (filteredTransactions || []).forEach(t => {
         const amt = parseAmount(t.Amount);
-        if (t.Type === 'Income') income += amt;
-        if (t.Type === 'Expense') expense += amt;
+        const classification = getTransactionClassification(t);
+        if (classification === 'Income') income += amt;
+        else if (classification === 'Expense') expense += amt;
     });
 
     return { income, expense, savings: income - expense };
@@ -1501,25 +1561,37 @@ function updateDashboard() {
             recentTransactionsList.innerHTML = '<p class="text-muted" style="text-align:center; padding:10px;">No transactions added yet.</p>';
         } else {
             recent.forEach(t => {
-                const isExpense = t.Type === 'Expense';
-                const isTransfer = t.Type === 'Transfer';
+                const classification = getTransactionClassification(t);
+                const isTransferCategory = String(t.Category || '').toLowerCase() === 'transfer' || String(t.Type || '').toLowerCase() === 'transfer';
                 let icon = 'fa-arrow-trend-down';
                 let colorClass = 'amount-expense';
                 let sign = '-';
+                let categoryName = t.Category || 'Expense';
+                let subtitle = `${t.Account || 'Cash'} • ${formatDateDisplay(t.Date)}`;
 
-                if (isTransfer) {
+                if (classification === 'Self') {
                     icon = 'fa-arrow-right-arrow-left';
                     colorClass = 'amount-transfer';
                     sign = '';
-                } else if (t.Type === 'Income') {
+                    categoryName = `${t.Account || 'Cash'} → ${t.ToAccount || 'Cash'}`;
+                    subtitle = `Self Transfer • ${formatDateDisplay(t.Date)}`;
+                } else if (classification === 'Income') {
                     icon = 'fa-arrow-trend-up';
                     colorClass = 'amount-income';
                     sign = '+';
+                    if (isTransferCategory) {
+                        categoryName = `Credited • ${t.Account || 'Sender'}`;
+                        subtitle = `To ${t.ToAccount || 'Account'} • ${formatDateDisplay(t.Date)}`;
+                    }
+                } else {
+                    icon = 'fa-arrow-trend-down';
+                    colorClass = 'amount-expense';
+                    sign = '-';
+                    if (isTransferCategory) {
+                        categoryName = `Debited • ${t.ToAccount || 'Recipient'}`;
+                        subtitle = `From ${t.Account || 'Cash'} • ${formatDateDisplay(t.Date)}`;
+                    }
                 }
-
-                const formattedDate = formatDateDisplay(t.Date);
-                const categoryName = isTransfer ? `${t.Account || 'Cash'} → ${t.ToAccount || 'Cash'}` : t.Category;
-                const subtitle = isTransfer ? `Transfer • ${formattedDate}` : `${t.Account || 'Cash'} • ${formattedDate}`;
 
                 const html = `
                     <div style="display:flex; justify-content:space-between; align-items:center; padding: 12px 0; border-bottom: 1px solid var(--border-color);">
@@ -1548,8 +1620,9 @@ function updateDashboard() {
 
 function getCategoryData(data, type) {
     const categoryTotals = {};
-    (data || []).filter(t => t.Type === type).forEach(t => {
-        categoryTotals[t.Category] = (categoryTotals[t.Category] || 0) + parseAmount(t.Amount);
+    (data || []).filter(t => getTransactionClassification(t) === type).forEach(t => {
+        const cat = t.Category || (type === 'Income' ? 'Other Income' : 'Other Expense');
+        categoryTotals[cat] = (categoryTotals[cat] || 0) + parseAmount(t.Amount);
     });
     return {
         labels: Object.keys(categoryTotals),
@@ -1672,8 +1745,8 @@ function filterTransactions() {
     return transactions.filter(t => {
         const notesMatch = t.Notes && t.Notes.toLowerCase().includes(searchTerm);
         const categoryMatch = t.Category && t.Category.toLowerCase().includes(searchTerm);
-        const accountMatch = (t.Account && t.Account.toLowerCase().includes(searchTerm)) || 
-                             (t.ToAccount && t.ToAccount.toLowerCase().includes(searchTerm));
+        const accountMatch = (t.Account && t.Account.toLowerCase().includes(searchTerm)) ||
+            (t.ToAccount && t.ToAccount.toLowerCase().includes(searchTerm));
         const matchesSearch = !searchTerm || notesMatch || categoryMatch || accountMatch;
 
         let matchesMonth = true;
@@ -1709,35 +1782,46 @@ function renderHistoryTable() {
 
     filtered.forEach((t) => {
         const realIndex = transactions.indexOf(t);
+        const classification = getTransactionClassification(t);
+        const isTransferCategory = String(t.Category || '').toLowerCase() === 'transfer' || String(t.Type || '').toLowerCase() === 'transfer';
 
-        const isExpense = t.Type === 'Expense';
-        const isTransfer = t.Type === 'Transfer';
         let colorClass = 'amount-expense';
         let sign = '-';
+        let catBadgeHtml = '';
 
-        if (isTransfer) {
+        if (classification === 'Self') {
             colorClass = 'amount-transfer';
             sign = '';
-        } else if (t.Type === 'Income') {
+            catBadgeHtml = `<span class="transfer-badge" style="background:rgba(99, 102, 241, 0.12); color:#6366F1; border:1px solid rgba(99, 102, 241, 0.25);"><i class="fa-solid fa-arrow-right-arrow-left"></i> Self Transfer</span>`;
+        } else if (classification === 'Income') {
             colorClass = 'amount-income';
             sign = '+';
-        }
-
-        // Lookup Category icon & color
-        let catBadgeHtml = '';
-        if (isTransfer) {
-            catBadgeHtml = `<span class="transfer-badge"><i class="fa-solid fa-arrow-right-arrow-left"></i> Transfer</span>`;
+            if (isTransferCategory) {
+                catBadgeHtml = `<span class="category-badge" style="background-color: rgba(16, 185, 129, 0.12); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.25);"><i class="fa-solid fa-arrow-down-to-bracket"></i> Credited</span>`;
+            } else {
+                const allCats = [...(categories.Expense || []), ...(categories.Income || [])];
+                const matchedCat = allCats.find(c => c.name.toLowerCase() === (t.Category || '').toLowerCase());
+                const catIcon = matchedCat?.icon || 'fa-coins';
+                const catColor = matchedCat?.color || '#10B981';
+                catBadgeHtml = `<span class="category-badge" style="background-color: ${catColor}15; color: ${catColor}; border: 1px solid ${catColor}30;"><i class="fa-solid ${catIcon}"></i> ${t.Category}</span>`;
+            }
         } else {
-            const allCats = [...(categories.Expense || []), ...(categories.Income || [])];
-            const matchedCat = allCats.find(c => c.name.toLowerCase() === (t.Category || '').toLowerCase());
-            const catIcon = matchedCat?.icon || (isExpense ? 'fa-tag' : 'fa-coins');
-            const catColor = matchedCat?.color || (isExpense ? '#EF4444' : '#10B981');
-            catBadgeHtml = `<span class="category-badge" style="background-color: ${catColor}15; color: ${catColor}; border: 1px solid ${catColor}30;"><i class="fa-solid ${catIcon}"></i> ${t.Category}</span>`;
+            colorClass = 'amount-expense';
+            sign = '-';
+            if (isTransferCategory) {
+                catBadgeHtml = `<span class="category-badge" style="background-color: rgba(239, 68, 68, 0.12); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.25);"><i class="fa-solid fa-arrow-up-from-bracket"></i> Debited</span>`;
+            } else {
+                const allCats = [...(categories.Expense || []), ...(categories.Income || [])];
+                const matchedCat = allCats.find(c => c.name.toLowerCase() === (t.Category || '').toLowerCase());
+                const catIcon = matchedCat?.icon || 'fa-tag';
+                const catColor = matchedCat?.color || '#EF4444';
+                catBadgeHtml = `<span class="category-badge" style="background-color: ${catColor}15; color: ${catColor}; border: 1px solid ${catColor}30;"><i class="fa-solid ${catIcon}"></i> ${t.Category}</span>`;
+            }
         }
 
         // Account display
         let accountDisplayHtml = '';
-        if (isTransfer) {
+        if (isTransferCategory) {
             accountDisplayHtml = formatTransferPartyHtml(t);
         } else {
             const matchedAcc = accounts.find(a => a.name.toLowerCase() === (t.Account || 'Cash').toLowerCase());
@@ -1765,8 +1849,8 @@ function updateAnalytics() {
     const timeFilter = analyticsTimeFilter ? analyticsTimeFilter.value : 'weekly';
     const txType = currentAnalyticsTab === 'expenses' ? 'Expense' : 'Income';
 
-    // Filter by type
-    const relevantTx = transactions.filter(t => t.Type === txType);
+    // Filter by classification (respecting Debited as Expense and Credited as Income)
+    const relevantTx = transactions.filter(t => getTransactionClassification(t) === txType);
 
     const labels = [];
     const dataPoints = [];
@@ -2168,16 +2252,16 @@ function calculateMonthlyReport(targetYear, targetMonthIndex) {
         return d && d.getFullYear() === prevYear && d.getMonth() === prevMonthIndex;
     });
 
-    // Income calculations
-    const incomeList = currentMonthTx.filter(t => t.Type === 'Income');
+    // Income calculations (including Credited transfers)
+    const incomeList = currentMonthTx.filter(t => getTransactionClassification(t) === 'Income');
     const incomeAmounts = incomeList.map(t => parseAmount(t.Amount));
     const totalIncome = incomeAmounts.reduce((sum, a) => sum + a, 0);
     const incomeCount = incomeList.length;
     const avgIncome = incomeCount > 0 ? totalIncome / incomeCount : 0;
     const highestIncome = incomeAmounts.length > 0 ? Math.max(...incomeAmounts) : 0;
 
-    // Expense calculations
-    const expenseList = currentMonthTx.filter(t => t.Type === 'Expense');
+    // Expense calculations (including Debited transfers)
+    const expenseList = currentMonthTx.filter(t => getTransactionClassification(t) === 'Expense');
     const expenseAmounts = expenseList.map(t => parseAmount(t.Amount));
     const totalExpense = expenseAmounts.reduce((sum, a) => sum + a, 0);
     const expenseCount = expenseList.length;
@@ -2185,8 +2269,8 @@ function calculateMonthlyReport(targetYear, targetMonthIndex) {
     const highestExpense = expenseAmounts.length > 0 ? Math.max(...expenseAmounts) : 0;
     const lowestExpense = expenseAmounts.length > 0 ? Math.min(...expenseAmounts) : 0;
 
-    // Transfer calculations
-    const transferList = currentMonthTx.filter(t => t.Type === 'Transfer');
+    // Self Transfer calculations
+    const transferList = currentMonthTx.filter(t => getTransactionClassification(t) === 'Self');
     const transferAmounts = transferList.map(t => parseAmount(t.Amount));
     const totalTransfer = transferAmounts.reduce((sum, a) => sum + a, 0);
     const transferCount = transferList.length;
@@ -2247,9 +2331,9 @@ function calculateMonthlyReport(targetYear, targetMonthIndex) {
     const avgTxAmount = expenseCount > 0 ? totalExpense / expenseCount : 0;
 
     // Month-over-Month comparison
-    const prevIncome = prevMonthTx.filter(t => t.Type === 'Income').reduce((s, t) => s + parseAmount(t.Amount), 0);
-    const prevExpense = prevMonthTx.filter(t => t.Type === 'Expense').reduce((s, t) => s + parseAmount(t.Amount), 0);
-    const prevTransfer = prevMonthTx.filter(t => t.Type === 'Transfer').reduce((s, t) => s + parseAmount(t.Amount), 0);
+    const prevIncome = prevMonthTx.filter(t => getTransactionClassification(t) === 'Income').reduce((s, t) => s + parseAmount(t.Amount), 0);
+    const prevExpense = prevMonthTx.filter(t => getTransactionClassification(t) === 'Expense').reduce((s, t) => s + parseAmount(t.Amount), 0);
+    const prevTransfer = prevMonthTx.filter(t => getTransactionClassification(t) === 'Self').reduce((s, t) => s + parseAmount(t.Amount), 0);
     const prevSavings = prevIncome - prevExpense;
     const hasPrevData = (prevIncome > 0 || prevExpense > 0 || prevTransfer > 0);
 
@@ -2419,18 +2503,18 @@ function renderReportResults(report) {
     const lowExpEl = document.getElementById('insight-lowest-expense');
 
     if (hiCatEl) {
-        hiCatEl.textContent = report.highestCategory 
-            ? `${report.highestCategory.category} (₹${report.highestCategory.amount.toLocaleString('en-IN')} • ${report.highestCategory.percentage}%)` 
+        hiCatEl.textContent = report.highestCategory
+            ? `${report.highestCategory.category} (₹${report.highestCategory.amount.toLocaleString('en-IN')} • ${report.highestCategory.percentage}%)`
             : 'None';
     }
     if (hiExpEl) {
-        hiExpEl.textContent = report.highestIndividualExpense 
-            ? `${report.highestIndividualExpense.Category} (₹${parseAmount(report.highestIndividualExpense.Amount).toLocaleString('en-IN')} on ${formatDateDisplay(report.highestIndividualExpense.Date)})` 
+        hiExpEl.textContent = report.highestIndividualExpense
+            ? `${report.highestIndividualExpense.Category} (₹${parseAmount(report.highestIndividualExpense.Amount).toLocaleString('en-IN')} on ${formatDateDisplay(report.highestIndividualExpense.Date)})`
             : 'None';
     }
     if (peakDayEl) {
-        peakDayEl.textContent = report.peakDay !== '-' 
-            ? `${report.peakDay} (₹${report.peakDayAmount.toLocaleString('en-IN')})` 
+        peakDayEl.textContent = report.peakDay !== '-'
+            ? `${report.peakDay} (₹${report.peakDayAmount.toLocaleString('en-IN')})`
             : '-';
     }
     if (dailyAvgEl) {
@@ -2440,8 +2524,8 @@ function renderReportResults(report) {
         avgTxEl.textContent = `₹${Math.round(report.avgTxAmount).toLocaleString('en-IN')}`;
     }
     if (lowExpEl) {
-        lowExpEl.textContent = report.lowestExpense > 0 
-            ? `₹${report.lowestExpense.toLocaleString('en-IN')}` 
+        lowExpEl.textContent = report.lowestExpense > 0
+            ? `₹${report.lowestExpense.toLocaleString('en-IN')}`
             : '-';
     }
 
@@ -2659,11 +2743,11 @@ function buildPdfDocument(report) {
     doc.text('Spending Insights', 14, y);
     y += 4;
 
-    const hiCatStr = report.highestCategory 
-        ? `${report.highestCategory.category} (Rs. ${report.highestCategory.amount.toLocaleString('en-IN')} • ${report.highestCategory.percentage}%)` 
+    const hiCatStr = report.highestCategory
+        ? `${report.highestCategory.category} (Rs. ${report.highestCategory.amount.toLocaleString('en-IN')} • ${report.highestCategory.percentage}%)`
         : 'None';
-    const hiExpStr = report.highestIndividualExpense 
-        ? `${report.highestIndividualExpense.Category} (Rs. ${parseAmount(report.highestIndividualExpense.Amount).toLocaleString('en-IN')} on ${formatDateDisplay(report.highestIndividualExpense.Date)})` 
+    const hiExpStr = report.highestIndividualExpense
+        ? `${report.highestIndividualExpense.Category} (Rs. ${parseAmount(report.highestIndividualExpense.Amount).toLocaleString('en-IN')} on ${formatDateDisplay(report.highestIndividualExpense.Date)})`
         : 'None';
 
     const insightRows = [
@@ -2738,7 +2822,7 @@ function buildPdfDocument(report) {
             1: { cellWidth: 50, halign: 'center', fontStyle: 'bold' },
             2: { cellWidth: 60, halign: 'center' }
         },
-        didParseCell: function(data) {
+        didParseCell: function (data) {
             if (data.column.index === 1) {
                 data.cell.styles.halign = 'center';
             }
@@ -2786,7 +2870,7 @@ function buildPdfDocument(report) {
                 2: { cellWidth: 76 },
                 3: { cellWidth: 40, halign: 'right', fontStyle: 'bold', textColor: [16, 185, 129] }
             },
-            didParseCell: function(data) {
+            didParseCell: function (data) {
                 if (data.column.index === 3) {
                     data.cell.styles.halign = 'right';
                 }
@@ -2837,7 +2921,7 @@ function buildPdfDocument(report) {
                 2: { cellWidth: 76 },
                 3: { cellWidth: 40, halign: 'right', fontStyle: 'bold', textColor: [239, 68, 68] }
             },
-            didParseCell: function(data) {
+            didParseCell: function (data) {
                 if (data.column.index === 3) {
                     data.cell.styles.halign = 'right';
                 }
@@ -2888,7 +2972,7 @@ function buildPdfDocument(report) {
                 2: { cellWidth: 66 },
                 3: { cellWidth: 40, halign: 'right', fontStyle: 'bold', textColor: [99, 102, 241] }
             },
-            didParseCell: function(data) {
+            didParseCell: function (data) {
                 if (data.column.index === 3) {
                     data.cell.styles.halign = 'right';
                 }
@@ -2960,7 +3044,7 @@ async function sendReportEmail(report) {
         const savedProfile = JSON.parse(localStorage.getItem('expense_tracker_profile')) || {};
         savedProfile.email = email;
         localStorage.setItem('expense_tracker_profile', JSON.stringify(savedProfile));
-    } catch (e) {}
+    } catch (e) { }
 
     // Disable button & show loading state
     if (emailReportBtn) {
@@ -3116,15 +3200,21 @@ function calculateAccountBalances() {
 
     transactions.forEach(t => {
         const amt = parseAmount(t.Amount);
-        const type = (t.Type || '').toLowerCase();
+        const classification = getTransactionClassification(t);
         const acc = t.Account || 'Cash';
         const toAcc = t.ToAccount || '';
 
-        if (type === 'income') {
-            balances[acc] = (balances[acc] || 0) + amt;
-        } else if (type === 'expense') {
-            balances[acc] = (balances[acc] || 0) - amt;
-        } else if (type === 'transfer') {
+        if (classification === 'Income') {
+            if (toAcc && balances[toAcc] !== undefined) {
+                balances[toAcc] += amt;
+            } else if (balances[acc] !== undefined) {
+                balances[acc] += amt;
+            }
+        } else if (classification === 'Expense') {
+            if (balances[acc] !== undefined) {
+                balances[acc] -= amt;
+            }
+        } else if (classification === 'Self') {
             if (balances[acc] !== undefined) {
                 balances[acc] -= amt;
             }
@@ -3587,7 +3677,7 @@ function deleteAccount(accId) {
         return;
     }
 
-    const inUse = transactions.some(t => 
+    const inUse = transactions.some(t =>
         (t.Account && t.Account.toLowerCase() === acc.name.toLowerCase()) ||
         (t.ToAccount && t.ToAccount.toLowerCase() === acc.name.toLowerCase())
     );

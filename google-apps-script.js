@@ -341,6 +341,21 @@ function handleSendMonthlyReport(requestData, sheet) {
         expenseList.push(item);
         categoryTotals[rCategory] = (categoryTotals[rCategory] || 0) + rAmount;
         dailySpending[formattedDate] = (dailySpending[formattedDate] || 0) + rAmount;
+      } else if (rType.toLowerCase() === 'transfer' || rCategory.toLowerCase() === 'transfer') {
+        // Classify transfer if marked as 'transfer'
+        const rAccount = String(rows[i][5] || '').trim();
+        const rToAccount = String(rows[i][6] || '').trim();
+        const notesLower = rNotes.toLowerCase();
+
+        if (notesLower.includes('credited') || notesLower.includes('received from') || (!rAccount && rToAccount)) {
+          totalIncome += rAmount;
+          incomeList.push(item);
+        } else if (notesLower.includes('debited') || notesLower.includes('paid to') || notesLower.includes('sent to') || (rAccount && !rToAccount)) {
+          totalExpense += rAmount;
+          expenseList.push(item);
+          categoryTotals['Transfer'] = (categoryTotals['Transfer'] || 0) + rAmount;
+          dailySpending[formattedDate] = (dailySpending[formattedDate] || 0) + rAmount;
+        }
       }
     }
   }
