@@ -28,7 +28,7 @@
 </head>
 
 <body>
-
+ 
     <!-- Header removed in favor of premium dashboard branding -->
 
     <main class="app-main">
@@ -44,26 +44,28 @@
                 <p class="brand-tagline">Track. Save. Grow.</p>
                 <p class="brand-quote">"Every transaction creates a ripple in your balance."</p>
             </div>
-            <div class="summary-cards">
-                <div class="card income-card">
-                    <div class="card-icon"><i class="fa-solid fa-arrow-trend-up"></i></div>
-                    <div class="card-content">
-                        <h3>Income</h3>
-                        <p id="monthly-income">₹0</p>
+
+            <!-- Dashboard Summary Bar (Image 2 design) -->
+            <div class="dashboard-month-bar">
+                <div class="dashboard-month-pill" id="dashboard-month-pill" title="Click to Change Month">
+                    <input type="month" id="dashboard-month-picker" class="dashboard-month-picker-input">
+                    <div class="month-pill-content">
+                        <span class="month-pill-year" id="dashboard-pill-year">2026</span>
+                        <span class="month-pill-month" id="dashboard-pill-month">Sept <i class="fa-solid fa-chevron-down"></i></span>
                     </div>
                 </div>
-                <div class="card expense-card">
-                    <div class="card-icon"><i class="fa-solid fa-arrow-trend-down"></i></div>
-                    <div class="card-content">
-                        <h3>Expenses</h3>
-                        <p id="monthly-expense">₹0</p>
+                <div class="dashboard-stats-row">
+                    <div class="dashboard-stat-col expense-col">
+                        <span class="stat-label">Expenses</span>
+                        <span class="stat-value" id="monthly-expense">0</span>
                     </div>
-                </div>
-                <div class="card savings-card">
-                    <div class="card-icon"><i class="fa-solid fa-piggy-bank"></i></div>
-                    <div class="card-content">
-                        <h3>Savings</h3>
-                        <p id="monthly-savings">₹0</p>
+                    <div class="dashboard-stat-col income-col">
+                        <span class="stat-label">Income</span>
+                        <span class="stat-value" id="monthly-income">0</span>
+                    </div>
+                    <div class="dashboard-stat-col balance-col">
+                        <span class="stat-label">Balance</span>
+                        <span class="stat-value" id="monthly-savings">0</span>
                     </div>
                 </div>
             </div>
@@ -109,56 +111,203 @@
             </div>
         </section>
 
-        <!-- Add Transaction View -->
+        <!-- Add Transaction View (Image 2 & 3 Workflow) -->
         <section id="view-add" class="view">
-            <h2 class="view-title">Add Transaction</h2>
-            <div class="card form-card">
-                <form id="add-transaction-form">
-                    <div class="form-group type-toggle">
-                        <input type="radio" id="type-expense" name="type" value="Expense" checked>
-                        <label for="type-expense" class="toggle-btn expense-toggle">Expense</label>
+            <div class="add-view-header">
+                <button type="button" class="btn-text add-cancel-btn" onclick="app.navigateTo('dashboard')">
+                    Cancel
+                </button>
+                <h2 class="add-view-title">Add</h2>
+                <button type="button" class="btn-text-action add-quick-manage" onclick="openSettingsSub('categories')" title="Manage Categories">
+                    <i class="fa-solid fa-sliders"></i>
+                </button>
+            </div>
 
-                        <input type="radio" id="type-income" name="type" value="Income">
-                        <label for="type-income" class="toggle-btn income-toggle">Income</label>
-                    </div>
+            <!-- Type Switcher (Expense | Income | Transfer) -->
+            <div class="add-type-toggle">
+                <button type="button" class="add-type-tab active" data-type="Expense" onclick="switchAddType('Expense')">Expense</button>
+                <button type="button" class="add-type-tab" data-type="Income" onclick="switchAddType('Income')">Income</button>
+                <button type="button" class="add-type-tab" data-type="Transfer" onclick="switchAddType('Transfer')">Transfer</button>
+            </div>
 
-                    <div class="form-group">
-                        <label for="amount">Amount</label>
-                        <div class="input-with-icon">
-                            <i class="fa-solid fa-indian-rupee-sign"></i>
-                            <input type="number" id="amount" name="amount" placeholder="0.00" required min="1"
-                                step="0.01">
+            <!-- Category Grid (Expense & Income) -->
+            <div id="add-category-grid" class="add-category-grid">
+                <!-- Category items dynamically injected here -->
+            </div>
+
+            <!-- Transfer Setup (Debited, Credited, and Self Transfer) -->
+            <div id="add-transfer-section" class="add-transfer-section hidden">
+                <!-- Sub-Mode Switcher -->
+                <div class="transfer-submode-bar">
+                    <button type="button" class="transfer-submode-btn active" data-submode="debited" onclick="switchTransferSubMode('debited')">
+                        <i class="fa-solid fa-arrow-up-from-bracket"></i> Debited
+                    </button>
+                    <button type="button" class="transfer-submode-btn" data-submode="credited" onclick="switchTransferSubMode('credited')">
+                        <i class="fa-solid fa-arrow-down-to-bracket"></i> Credited
+                    </button>
+                    <button type="button" class="transfer-submode-btn" data-submode="self" onclick="switchTransferSubMode('self')">
+                        <i class="fa-solid fa-arrow-right-arrow-left"></i> Self
+                    </button>
+                </div>
+
+                <!-- Interactive FROM & TO Cards -->
+                <div class="transfer-flow-card">
+                    <!-- FROM CARD -->
+                    <div class="transfer-party-card" id="transfer-from-card">
+                        <div class="transfer-party-header">
+                            <span class="transfer-badge-pill from-badge">FROM</span>
+                            <span class="transfer-party-hint" id="transfer-from-hint">Paid From (My Account)</span>
+                        </div>
+
+                        <!-- My Account Selector (Debited & Self) -->
+                        <div id="transfer-from-account-box" class="transfer-acc-select" onclick="openKeypadAccountPicker('from')">
+                            <span class="acc-pill-icon" id="transfer-from-icon"><i class="fa-solid fa-wallet"></i></span>
+                            <span class="acc-pill-name" id="transfer-from-name">Cash</span>
+                            <i class="fa-solid fa-chevron-down" style="font-size:0.7rem; margin-left:auto;"></i>
+                        </div>
+
+                        <!-- Person Name & Purpose (Credited) -->
+                        <div id="transfer-from-person-box" class="transfer-person-fields hidden">
+                            <div class="transfer-input-wrap">
+                                <i class="fa-solid fa-user"></i>
+                                <input type="text" id="transfer-sender-name" class="transfer-field-input" placeholder="Sender Name (e.g. Rahul, Client)" maxlength="40">
+                            </div>
+                            <div class="transfer-input-wrap">
+                                <i class="fa-solid fa-pen"></i>
+                                <input type="text" id="transfer-sender-purpose" class="transfer-field-input" placeholder="Purpose (e.g. Freelance, Lunch split)" maxlength="50">
+                            </div>
+                        </div>
+
+                        <!-- Payment Mode Chips -->
+                        <div class="transfer-mode-selector" id="transfer-mode-row">
+                            <span class="mode-label">Mode:</span>
+                            <div class="mode-chips">
+                                <button type="button" class="mode-chip active" data-mode="UPI" onclick="setTransferPaymentMode('UPI')">
+                                    <i class="fa-solid fa-qrcode"></i> UPI
+                                </button>
+                                <button type="button" class="mode-chip" data-mode="Cash" onclick="setTransferPaymentMode('Cash')">
+                                    <i class="fa-solid fa-money-bill-wave"></i> Cash
+                                </button>
+                                <button type="button" class="mode-chip" data-mode="Bank Transfer" onclick="setTransferPaymentMode('Bank Transfer')">
+                                    <i class="fa-solid fa-building-columns"></i> Bank
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="category">Category</label>
-                        <select id="category" name="category" required>
-                            <option value="Snacks">Snacks</option>
-                            <option value="Food">Food</option>
-                            <option value="Petrol">Petrol</option>
-                            <option value="Bike Service">Bike Service</option>
-                            <option value="Stationery">Stationery</option>
-                            <option value="Electricity">Electricity</option>
-                            <option value="BC Amt">BC Amt</option>
-                            <option value="Phone Bill">Phone Bill</option>
-                            <option value="Clothing">Clothing</option>
-                            <option value="Others">Others</option>
-                        </select>
+                    <!-- Flow Direction Arrow -->
+                    <div class="transfer-flow-arrow">
+                        <div class="flow-arrow-circle" id="transfer-flow-arrow-icon">
+                            <i class="fa-solid fa-arrow-down"></i>
+                        </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="date">Date</label>
-                        <input type="date" id="date" name="date" required>
+                    <!-- TO CARD -->
+                    <div class="transfer-party-card" id="transfer-to-card">
+                        <div class="transfer-party-header">
+                            <span class="transfer-badge-pill to-badge">TO</span>
+                            <span class="transfer-party-hint" id="transfer-to-hint">Sent To (Recipient)</span>
+                        </div>
+
+                        <!-- My Account Selector (Credited & Self) -->
+                        <div id="transfer-to-account-box" class="transfer-acc-select hidden" onclick="openKeypadAccountPicker('to')">
+                            <span class="acc-pill-icon" id="transfer-to-icon"><i class="fa-solid fa-building-columns"></i></span>
+                            <span class="acc-pill-name" id="transfer-to-name">SBI Bank</span>
+                            <i class="fa-solid fa-chevron-down" style="font-size:0.7rem; margin-left:auto;"></i>
+                        </div>
+
+                        <!-- Recipient Name & Purpose (Debited) -->
+                        <div id="transfer-to-person-box" class="transfer-person-fields">
+                            <div class="transfer-input-wrap">
+                                <i class="fa-solid fa-user"></i>
+                                <input type="text" id="transfer-recipient-name" class="transfer-field-input" placeholder="Recipient Name (e.g. Mahesh, Landlord)" maxlength="40">
+                            </div>
+                            <div class="transfer-input-wrap">
+                                <i class="fa-solid fa-pen"></i>
+                                <input type="text" id="transfer-recipient-purpose" class="transfer-field-input" placeholder="Purpose (e.g. Rent, Repayment)" maxlength="50">
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="notes">Notes (Optional)</label>
-                        <input type="text" id="notes" name="notes" placeholder="What was this for?">
+                    <!-- Transfer Amount Card (Tap to open keypad) -->
+                    <div class="transfer-amount-card" onclick="openKeypad()" title="Tap to enter amount">
+                        <div class="transfer-amount-header">
+                            <span class="transfer-amount-title"><i class="fa-solid fa-calculator"></i> TRANSFER AMOUNT</span>
+                            <span class="transfer-tap-hint"><i class="fa-solid fa-keyboard"></i> Tap to Enter</span>
+                        </div>
+                        <div class="transfer-amount-display-row">
+                            <span class="transfer-amount-sym">₹</span>
+                            <span class="transfer-amount-number" id="transfer-amount-val">0</span>
+                            <i class="fa-solid fa-chevron-right" style="font-size:0.85rem; color:var(--text-muted); margin-left:auto;"></i>
+                        </div>
                     </div>
 
-                    <button type="submit" class="btn-primary">Save Transaction</button>
-                </form>
+                    <!-- Save Transfer Button -->
+                    <button type="button" class="btn-primary transfer-main-submit-btn" id="transfer-main-submit-btn" onclick="submitKeypadTransaction()">
+                        <i class="fa-solid fa-check"></i> Save Transfer
+                    </button>
+                </div>
+            </div>
+
+            <!-- Keypad Backdrop (Tap outside to close) -->
+            <div id="keypad-backdrop" class="keypad-backdrop hidden" onclick="closeKeypad()"></div>
+
+            <!-- Keypad Bottom Sheet (Image 3 design) -->
+            <div id="keypad-sheet" class="keypad-sheet hidden">
+                <!-- Top Row: Account Selector Pill (Left) & Large Amount Display + Close Button (Right) -->
+                <div class="keypad-header-row">
+                    <button type="button" class="keypad-account-pill" id="keypad-account-btn" onclick="openKeypadAccountPicker('source')">
+                        <span class="keypad-acc-icon" id="keypad-acc-icon"><i class="fa-solid fa-wallet"></i></span>
+                        <span class="keypad-acc-name" id="keypad-acc-name">Cash</span>
+                        <i class="fa-solid fa-chevron-down" style="font-size: 0.65rem; opacity: 0.7;"></i>
+                    </button>
+                    <div class="keypad-header-right">
+                        <div class="keypad-amount-box">
+                            <span class="keypad-currency">₹</span>
+                            <span class="keypad-amount-val" id="keypad-amount-val">0</span>
+                        </div>
+                        <button type="button" class="keypad-close-btn" onclick="closeKeypad()" title="Dismiss Number Pad">
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Second Row: Note Input -->
+                <div class="keypad-note-row">
+                    <i class="fa-solid fa-pen" style="font-size: 0.8rem; color: var(--text-muted);"></i>
+                    <input type="text" id="keypad-note-input" class="keypad-note-input" placeholder="Note : Enter a note...">
+                </div>
+
+                <!-- Keypad 4x4 Grid -->
+                <div class="keypad-grid">
+                    <button type="button" class="key-btn" data-key="7">7</button>
+                    <button type="button" class="key-btn" data-key="8">8</button>
+                    <button type="button" class="key-btn" data-key="9">9</button>
+                    <button type="button" class="key-btn key-date" id="keypad-date-btn">
+                        <i class="fa-solid fa-calendar-day"></i>
+                        <span id="keypad-date-label">Today</span>
+                        <input type="date" id="keypad-date-input" class="hidden-date-picker">
+                    </button>
+
+                    <button type="button" class="key-btn" data-key="4">4</button>
+                    <button type="button" class="key-btn" data-key="5">5</button>
+                    <button type="button" class="key-btn" data-key="6">6</button>
+                    <button type="button" class="key-btn key-op" data-key="+">+</button>
+
+                    <button type="button" class="key-btn" data-key="1">1</button>
+                    <button type="button" class="key-btn" data-key="2">2</button>
+                    <button type="button" class="key-btn" data-key="3">3</button>
+                    <button type="button" class="key-btn key-op" data-key="-">-</button>
+
+                    <button type="button" class="key-btn" data-key=".">.</button>
+                    <button type="button" class="key-btn" data-key="0">0</button>
+                    <button type="button" class="key-btn key-backspace" data-key="backspace" title="Delete">
+                        <i class="fa-solid fa-delete-left"></i>
+                    </button>
+                    <button type="button" class="key-btn key-confirm" id="keypad-confirm-btn" title="Save Transaction">
+                        <i class="fa-solid fa-check"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Toast Notification -->
@@ -196,10 +345,15 @@
             <div class="card history-actions">
                 <div class="search-bar">
                     <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" id="search-history" placeholder="Search notes or category...">
+                    <input type="text" id="search-history" placeholder="Search notes, category, account...">
                 </div>
-                <div class="filter-month">
-                    <input type="month" id="history-month-filter">
+                <div class="history-filters-row">
+                    <select id="history-account-filter" class="history-account-filter">
+                        <option value="">All Accounts</option>
+                    </select>
+                    <div class="filter-month">
+                        <input type="month" id="history-month-filter">
+                    </div>
                 </div>
             </div>
 
@@ -210,6 +364,7 @@
                             <tr>
                                 <th>Date</th>
                                 <th>Category</th>
+                                <th>Account</th>
                                 <th>Notes</th>
                                 <th class="text-right">Amount</th>
                             </tr>
@@ -232,6 +387,24 @@
 
             <!-- MAIN MENU -->
             <div id="settings-main-menu">
+                <div class="settings-menu-card" onclick="openSettingsSub('categories')">
+                    <div class="settings-menu-icon">🏷️</div>
+                    <div class="settings-menu-info">
+                        <h3>Custom Categories</h3>
+                        <p>Add, reorder & customize icons and colors</p>
+                    </div>
+                    <div class="settings-menu-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+                </div>
+
+                <div class="settings-menu-card" onclick="openSettingsSub('accounts')">
+                    <div class="settings-menu-icon">💳</div>
+                    <div class="settings-menu-info">
+                        <h3>Multiple Accounts</h3>
+                        <p>Manage bank, cash, UPI, cards & initial balances</p>
+                    </div>
+                    <div class="settings-menu-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+                </div>
+
                 <div class="settings-menu-card" onclick="openSettingsSub('profile')">
                     <div class="settings-menu-icon">👤</div>
                     <div class="settings-menu-info">
@@ -276,7 +449,7 @@
                     <h2
                         style="font-size: 1.5rem; font-weight: 700; color: var(--text-main); margin-bottom: 5px; letter-spacing: 2px;">
                         RIPPLE</h2>
-                    <p>Version 1.0</p>
+                    <p>Version 2.0</p>
                     <p>Built with ❤️ By Guru</p>
                 </div>
             </div>
@@ -336,6 +509,67 @@
                             <option value="23:00">11:00 PM</option>
                             <option value="23:50">11:50 PM</option>
                         </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. CUSTOM CATEGORIES SUBVIEW -->
+            <div id="settings-sub-categories" class="settings-subview hidden">
+                <button class="btn-text settings-back-btn" onclick="closeSettingsSub()"><i
+                        class="fa-solid fa-arrow-left"></i> Back to Settings</button>
+                <div class="card settings-card" style="margin-top: 15px;">
+                    <div class="subview-header">
+                        <div>
+                            <h3 class="settings-section-title" style="margin-bottom: 2px;">CUSTOM CATEGORIES</h3>
+                            <p class="settings-description" style="margin-bottom: 0;">Add, reorder & style icons and colors.</p>
+                        </div>
+                        <button type="button" class="btn-primary-sm" onclick="openCategoryModal('add')">
+                            <i class="fa-solid fa-plus"></i> Add
+                        </button>
+                    </div>
+
+                    <div class="category-type-tabs">
+                        <button type="button" class="cat-type-tab active" id="tab-cat-expense" onclick="switchCategoryTab('Expense')">
+                            <i class="fa-solid fa-arrow-trend-down"></i> Expenses
+                        </button>
+                        <button type="button" class="cat-type-tab" id="tab-cat-income" onclick="switchCategoryTab('Income')">
+                            <i class="fa-solid fa-arrow-trend-up"></i> Incomes
+                        </button>
+                    </div>
+
+                    <div id="categories-management-list" class="categories-list">
+                        <!-- Dynamic categories list injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. MULTIPLE ACCOUNTS SUBVIEW -->
+            <div id="settings-sub-accounts" class="settings-subview hidden">
+                <button class="btn-text settings-back-btn" onclick="closeSettingsSub()"><i
+                        class="fa-solid fa-arrow-left"></i> Back to Settings</button>
+                <div class="card settings-card" style="margin-top: 15px;">
+                    <div class="subview-header">
+                        <div>
+                            <h3 class="settings-section-title" style="margin-bottom: 2px;">YOUR ACCOUNTS</h3>
+                            <p class="settings-description" style="margin-bottom: 0;">Manage bank, cash, UPI, cards & initial balances.</p>
+                        </div>
+                        <button type="button" class="btn-primary-sm" onclick="openAccountModal('add')">
+                            <i class="fa-solid fa-plus"></i> Add Account
+                        </button>
+                    </div>
+
+                    <div class="account-net-worth-card">
+                        <div class="account-net-worth-info">
+                            <span class="account-net-worth-tag">TOTAL NET WORTH</span>
+                            <h3 class="account-net-worth-title" id="total-net-balance">₹0</h3>
+                        </div>
+                        <div class="account-net-worth-icon">
+                            <i class="fa-solid fa-vault"></i>
+                        </div>
+                    </div>
+
+                    <div id="accounts-management-list" class="accounts-settings-list">
+                        <!-- Dynamic accounts list injected here -->
                     </div>
                 </div>
             </div>
@@ -408,6 +642,14 @@
                             <span class="sub-stat" id="report-expense-count">0 transactions</span>
                         </div>
                     </div>
+                    <div class="card transfer-card">
+                        <div class="card-icon"><i class="fa-solid fa-arrow-right-arrow-left"></i></div>
+                        <div class="card-content">
+                            <h3>Total Transferred</h3>
+                            <p id="report-total-transfer">₹0</p>
+                            <span class="sub-stat" id="report-transfer-count">0 transactions</span>
+                        </div>
+                    </div>
                     <div class="card savings-card">
                         <div class="card-icon"><i class="fa-solid fa-piggy-bank"></i></div>
                         <div class="card-content">
@@ -461,6 +703,10 @@
                         <div class="mom-item">
                             <span>Expenses</span>
                             <strong id="mom-expense-change">-</strong>
+                        </div>
+                        <div class="mom-item">
+                            <span>Transfers</span>
+                            <strong id="mom-transfer-change">-</strong>
                         </div>
                         <div class="mom-item">
                             <span>Savings</span>
@@ -522,6 +768,29 @@
                         <p class="text-muted">No expense transactions for this month.</p>
                     </div>
                 </div>
+
+                <!-- 8. Itemized Transfer Transactions -->
+                <div class="card">
+                    <h3 class="section-subtitle amount-transfer"><i class="fa-solid fa-arrow-right-arrow-left"></i> Transfer Transactions</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>From / To</th>
+                                    <th>Notes / Purpose</th>
+                                    <th class="text-right">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="report-transfer-tbody">
+                                <!-- Injected dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="report-no-transfer-msg" class="empty-state hidden">
+                        <p class="text-muted">No transfer transactions for this month.</p>
+                    </div>
+                </div>
             </div>
         </section>
     </main>
@@ -553,6 +822,142 @@
             <span>Settings</span>
         </a>
     </nav>
+ 
+    <!-- Category Modal -->
+    <div id="category-modal" class="modal-backdrop hidden">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 id="category-modal-title">Add Category</h3>
+                <button type="button" class="modal-close-btn" onclick="closeCategoryModal()">&times;</button>
+            </div>
+            <form id="category-form" onsubmit="handleCategoryFormSubmit(event)">
+                <input type="hidden" id="category-edit-id" value="">
+                <input type="hidden" id="category-edit-type" value="Expense">
+
+                <div class="form-group">
+                    <label for="category-name-input">Category Name</label>
+                    <input type="text" id="category-name-input" placeholder="e.g. Groceries, Gym" required maxlength="25">
+                </div>
+
+                <div class="form-group">
+                    <label>Category Color</label>
+                    <div class="color-palette" id="category-color-palette">
+                        <!-- Swatches injected dynamically -->
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+                        <input type="color" id="category-custom-color" value="#10B981" class="custom-color-input">
+                        <span style="font-size:0.8rem; color:var(--text-muted);">Custom color</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Category Icon</label>
+                    <div class="icon-selector-grid" id="category-icon-grid">
+                        <!-- Icons injected dynamically -->
+                    </div>
+                </div>
+
+                <div class="modal-preview-box">
+                    <span style="font-size:0.8rem; color:var(--text-muted);">Preview:</span>
+                    <div class="category-badge-preview" id="category-badge-preview">
+                        <span class="cat-icon-circle" id="preview-cat-icon"><i class="fa-solid fa-utensils"></i></span>
+                        <span id="preview-cat-name" style="font-weight:600;">Category Name</span>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeCategoryModal()">Cancel</button>
+                    <button type="submit" class="btn-primary" id="save-category-btn">Save Category</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Account Modal -->
+    <div id="account-modal" class="modal-backdrop hidden">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 id="account-modal-title">Add Account</h3>
+                <button type="button" class="modal-close-btn" onclick="closeAccountModal()">&times;</button>
+            </div>
+            <form id="account-form" onsubmit="handleAccountFormSubmit(event)">
+                <input type="hidden" id="account-edit-id" value="">
+
+                <div class="form-group">
+                    <label for="account-name-input">Account Name</label>
+                    <input type="text" id="account-name-input" placeholder="e.g. SBI Savings, Paytm, Cash" required maxlength="25">
+                </div>
+
+                <div class="form-group">
+                    <label for="account-type-select">Account Type</label>
+                    <select id="account-type-select" required>
+                        <option value="bank">Bank Account</option>
+                        <option value="cash">Cash</option>
+                        <option value="upi">UPI</option>
+                        <option value="credit">Credit Card</option>
+                        <option value="wallet">Wallet</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="account-balance-input">Initial Balance (₹)</label>
+                    <input type="number" id="account-balance-input" placeholder="0.00" step="0.01" value="0.00">
+                </div>
+
+                <div class="form-group">
+                    <label>Account Color</label>
+                    <div class="color-palette" id="account-color-palette">
+                        <!-- Swatches injected dynamically -->
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+                        <input type="color" id="account-custom-color" value="#4F46E5" class="custom-color-input">
+                        <span style="font-size:0.8rem; color:var(--text-muted);">Custom color</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Account Icon</label>
+                    <div class="icon-selector-grid" id="account-icon-grid">
+                        <!-- Icons injected dynamically -->
+                    </div>
+                </div>
+
+                <div class="modal-preview-box">
+                    <span style="font-size:0.8rem; color:var(--text-muted);">Preview:</span>
+                    <div class="account-card-preview" id="account-card-preview">
+                        <div class="acc-icon-circle" id="preview-acc-icon"><i class="fa-solid fa-building-columns"></i></div>
+                        <div>
+                            <strong id="preview-acc-name">Account Name</strong>
+                            <p id="preview-acc-type" style="font-size:0.75rem; color:var(--text-muted); margin:0;">Bank Account</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeAccountModal()">Cancel</button>
+                    <button type="submit" class="btn-primary" id="save-account-btn">Save Account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Quick Account Picker Bottom Sheet (Docked to bottom of screen) -->
+    <div id="keypad-account-popover" class="keypad-account-popover hidden">
+        <div class="popover-backdrop" onclick="closeKeypadAccountPicker()"></div>
+        <div class="popover-content">
+            <div class="popover-drag-bar"></div>
+            <div class="popover-header">
+                <div class="popover-title">Select Account</div>
+                <button type="button" class="popover-close-btn" onclick="closeKeypadAccountPicker()" title="Dismiss">
+                    <i class="fa-solid fa-chevron-down"></i>
+                </button>
+            </div>
+            <div id="popover-accounts-list" class="popover-accounts-list">
+                <!-- Injected dynamically -->
+            </div>
+        </div>
+    </div>
 
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
