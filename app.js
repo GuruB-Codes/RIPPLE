@@ -1,7 +1,6 @@
 // --- CONFIGURATION ---
 // REPLACE THIS URL WITH YOUR GOOGLE APPS SCRIPT WEB APP URL
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxZo2gjrNI1f-dVQzDZUh-6SjuByb_mk8KAMhvUq7M9fpN0Foa1dc60UtwmCUVXe4LZ/exec';
-
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhz5r6NEYTTyUt9760qtbgO6ikehapi5ltSdU3mfVtoUXQTYUGNIzanJKABSHTNrAQ/exec';
 // --- CONSTANTS & MONTH MAPPINGS ---
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTH_MAP = {
