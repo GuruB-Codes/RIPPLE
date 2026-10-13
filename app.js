@@ -71,13 +71,10 @@ const DEFAULT_CATEGORIES = {
     ]
 };
 
-// Default Accounts Seed
+// Default Accounts Seed (Only Cash and UPI)
 const DEFAULT_ACCOUNTS = [
     { id: 'acc_cash', name: 'Cash', type: 'cash', initialBalance: 0, icon: 'fa-money-bill-wave', color: '#10B981', isDefault: true, order: 1 },
-    { id: 'acc_bank', name: 'Bank Account', type: 'bank', initialBalance: 0, icon: 'fa-building-columns', color: '#4F46E5', isDefault: false, order: 2 },
-    { id: 'acc_upi', name: 'UPI', type: 'upi', initialBalance: 0, icon: 'fa-mobile-screen', color: '#06B6D4', isDefault: false, order: 3 },
-    { id: 'acc_credit', name: 'Credit Card', type: 'credit', initialBalance: 0, icon: 'fa-credit-card', color: '#EC4899', isDefault: false, order: 4 },
-    { id: 'acc_wallet', name: 'Wallet', type: 'wallet', initialBalance: 0, icon: 'fa-wallet', color: '#F59E0B', isDefault: false, order: 5 }
+    { id: 'acc_upi', name: 'UPI', type: 'upi', initialBalance: 0, icon: 'fa-mobile-screen-button', color: '#06B6D4', isDefault: false, order: 2 }
 ];
 
 let categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
@@ -276,7 +273,7 @@ function updateAccountOptions() {
 
     if (histAccFilter) {
         const currentVal = histAccFilter.value;
-        histAccFilter.innerHTML = '<option value="">All Accounts</option>' + optionsHtml;
+        histAccFilter.innerHTML = '<option value="">All Modes</option>' + optionsHtml;
         if (currentVal) {
             histAccFilter.value = currentVal;
         }
@@ -790,13 +787,12 @@ function openKeypadAccountPicker(target) {
     if (!popover || !listEl) return;
 
     listEl.innerHTML = '';
-    const balances = calculateAccountBalances();
     const activeAccName = (target === 'to') ? addSelectedToAccount : addSelectedAccount;
 
     accounts.forEach(acc => {
-        const bal = balances[acc.name] || 0;
-        const isSelected = acc.name === activeAccName;
-        const iconClass = (acc.icon && acc.icon.startsWith('fa-')) ? acc.icon : 'fa-wallet';
+        const isSelected = acc.name.toLowerCase() === (activeAccName || 'Cash').toLowerCase();
+        const isCash = acc.name.toLowerCase() === 'cash';
+        const iconClass = (acc.icon && acc.icon.startsWith('fa-')) ? acc.icon : (isCash ? 'fa-money-bill-wave' : 'fa-mobile-screen-button');
 
         const item = document.createElement('div');
         item.className = `popover-acc-item ${isSelected ? 'selected' : ''}`;
@@ -804,17 +800,15 @@ function openKeypadAccountPicker(target) {
 
         item.innerHTML = `
             <div class="popover-acc-left">
-                <div class="acc-pill-icon" style="background-color:${acc.color || '#4F46E5'}; width:32px; height:32px; font-size:0.9rem;">
+                <div class="acc-pill-icon" style="background-color:${acc.color || (isCash ? '#10B981' : '#06B6D4')}; width:34px; height:34px; font-size:0.95rem;">
                     <i class="fa-solid ${iconClass}"></i>
                 </div>
                 <div>
                     <div style="font-weight:600; font-size:0.95rem; color:var(--text-main);">${acc.name}</div>
-                    <span style="font-size:0.75rem; color:var(--text-muted);">${acc.type || 'Account'}</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted);">${isCash ? 'Cash Payment' : 'Digital / UPI'}</span>
                 </div>
             </div>
-            <div class="popover-acc-bal">
-                ₹${bal.toLocaleString('en-IN')}
-            </div>
+            ${isSelected ? '<i class="fa-solid fa-circle-check" style="color:var(--primary-color); font-size:1.15rem;"></i>' : ''}
         `;
         listEl.appendChild(item);
     });
@@ -3166,8 +3160,20 @@ function loadAccounts() {
         if (cached) {
             const parsed = JSON.parse(cached);
             if (Array.isArray(parsed) && parsed.length > 0) {
-                accounts = parsed;
-                return;
+                const allowed = ['Cash', 'UPI'];
+                let filtered = parsed.filter(a => allowed.some(name => name.toLowerCase() === String(a.name || '').trim().toLowerCase()));
+                if (filtered.length > 0) {
+                    allowed.forEach(modeName => {
+                        if (!filtered.some(a => String(a.name || '').toLowerCase() === modeName.toLowerCase())) {
+                            const def = DEFAULT_ACCOUNTS.find(d => d.name.toLowerCase() === modeName.toLowerCase());
+                            if (def) filtered.push(JSON.parse(JSON.stringify(def)));
+                        }
+                    });
+                    filtered.forEach(a => { a.initialBalance = 0; });
+                    accounts = filtered;
+                    saveAccounts();
+                    return;
+                }
             }
         }
     } catch (e) {
@@ -3489,40 +3495,38 @@ function handleCategoryFormSubmit(e) {
     closeCategoryModal();
 }
 
-// --- ACCOUNT MANAGEMENT (SETTINGS) ---
+// --- MODE OF TRANSACTION MANAGEMENT (SETTINGS) ---
 function renderAccountsManagement() {
     const listEl = document.getElementById('accounts-management-list');
     if (!listEl) return;
     listEl.innerHTML = '';
 
-    const balances = calculateAccountBalances();
-
     accounts.forEach(acc => {
-        const bal = balances[acc.name] || 0;
         const card = document.createElement('div');
         card.className = 'account-settings-card';
 
+        const isCash = acc.name.toLowerCase() === 'cash';
+        const typeBadge = isCash ? 'CASH' : 'UPI';
+        const subLabel = isCash ? 'Cash Payment Mode' : 'Online / UPI Payment Mode';
+        const iconClass = (acc.icon && acc.icon.startsWith('fa-')) ? acc.icon : (isCash ? 'fa-money-bill-wave' : 'fa-mobile-screen-button');
+
         card.innerHTML = `
             <div class="account-card-left">
-                <div class="acc-icon-circle" style="background-color: ${acc.color || '#4F46E5'};">
-                    <i class="fa-solid ${acc.icon || 'fa-building-columns'}"></i>
+                <div class="acc-icon-circle" style="background-color: ${acc.color || (isCash ? '#10B981' : '#06B6D4')};">
+                    <i class="fa-solid ${iconClass}"></i>
                 </div>
                 <div>
-                    <div style="font-weight:600; font-size:1rem; color:var(--text-main);">${acc.name}</div>
-                    <span class="account-type-tag">${acc.type || 'account'}</span>
+                    <div style="font-weight:600; font-size:1.05rem; color:var(--text-main);">${acc.name}</div>
+                    <div style="display:flex; align-items:center; gap:6px; margin-top:3px;">
+                        <span class="account-type-tag">${typeBadge}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${subLabel}</span>
+                    </div>
                 </div>
             </div>
             <div style="display:flex; align-items:center;">
-                <div class="account-card-balance-info">
-                    <div class="account-current-bal">₹${bal.toLocaleString('en-IN')}</div>
-                    <div class="account-init-bal">Initial: ₹${parseAmount(acc.initialBalance || 0).toLocaleString('en-IN')}</div>
-                </div>
                 <div class="category-actions">
-                    <button type="button" class="action-btn-edit" title="Edit" onclick="openAccountModal('edit', '${acc.id}')">
+                    <button type="button" class="action-btn-edit" title="Customize Color & Icon" onclick="openAccountModal('edit', '${acc.id}')">
                         <i class="fa-solid fa-pen"></i>
-                    </button>
-                    <button type="button" class="action-btn-del" title="Delete" onclick="deleteAccount('${acc.id}')">
-                        <i class="fa-solid fa-trash"></i>
                     </button>
                 </div>
             </div>
@@ -3540,25 +3544,19 @@ function openAccountModal(mode, accId) {
     const idInput = document.getElementById('account-edit-id');
     const customColorInput = document.getElementById('account-custom-color');
 
-    if (mode === 'edit' && accId) {
-        const acc = accounts.find(a => a.id === accId);
-        if (!acc) return;
-        titleEl.textContent = 'Edit Account';
-        idInput.value = acc.id;
+    const acc = accounts.find(a => a.id === accId) || accounts[0];
+    if (!acc) return;
+
+    if (titleEl) titleEl.textContent = `Customize ${acc.name} Mode`;
+    if (idInput) idInput.value = acc.id;
+    if (nameInput) {
         nameInput.value = acc.name;
-        typeSelect.value = acc.type || 'bank';
-        balanceInput.value = parseAmount(acc.initialBalance || 0);
-        selectedModalColor = acc.color || '#4F46E5';
-        selectedModalIcon = acc.icon || 'fa-building-columns';
-    } else {
-        titleEl.textContent = 'Add Account';
-        idInput.value = '';
-        nameInput.value = '';
-        typeSelect.value = 'bank';
-        balanceInput.value = '0.00';
-        selectedModalColor = '#4F46E5';
-        selectedModalIcon = 'fa-building-columns';
+        nameInput.readOnly = true;
     }
+    if (typeSelect) typeSelect.value = acc.type || (acc.name === 'UPI' ? 'upi' : 'cash');
+    if (balanceInput) balanceInput.value = '0';
+    selectedModalColor = acc.color || (acc.name === 'UPI' ? '#06B6D4' : '#10B981');
+    selectedModalIcon = acc.icon || (acc.name === 'UPI' ? 'fa-mobile-screen-button' : 'fa-money-bill-wave');
 
     if (customColorInput) customColorInput.value = selectedModalColor;
     renderColorPalette('account', selectedModalColor);
@@ -3566,7 +3564,6 @@ function openAccountModal(mode, accId) {
     updateAccountPreview();
 
     modal.classList.remove('hidden');
-    nameInput.focus();
 }
 
 function closeAccountModal() {
@@ -3576,24 +3573,16 @@ function closeAccountModal() {
 
 function updateAccountPreview() {
     const nameInput = document.getElementById('account-name-input');
-    const typeSelect = document.getElementById('account-type-select');
     const previewName = document.getElementById('preview-acc-name');
     const previewType = document.getElementById('preview-acc-type');
     const previewIcon = document.getElementById('preview-acc-icon');
 
+    const nameVal = (nameInput && nameInput.value.trim()) ? nameInput.value.trim() : 'Cash';
     if (previewName) {
-        previewName.textContent = (nameInput && nameInput.value.trim()) ? nameInput.value.trim() : 'Account Name';
+        previewName.textContent = nameVal;
     }
-    if (previewType && typeSelect) {
-        const typeLabels = {
-            bank: 'Bank Account',
-            cash: 'Cash',
-            upi: 'UPI',
-            credit: 'Credit Card',
-            wallet: 'Wallet',
-            other: 'Other'
-        };
-        previewType.textContent = typeLabels[typeSelect.value] || 'Account';
+    if (previewType) {
+        previewType.textContent = nameVal.toLowerCase() === 'upi' ? 'UPI Mode' : 'Cash Mode';
     }
     if (previewIcon) {
         previewIcon.style.backgroundColor = selectedModalColor;
@@ -3605,24 +3594,16 @@ function handleAccountFormSubmit(e) {
     e.preventDefault();
     const nameInput = document.getElementById('account-name-input');
     const typeSelect = document.getElementById('account-type-select');
-    const balanceInput = document.getElementById('account-balance-input');
     const idInput = document.getElementById('account-edit-id');
 
-    const name = (nameInput.value || '').trim();
+    const name = (nameInput?.value || '').trim();
     if (!name) {
-        showToast('⚠️ Please enter an account name.');
+        showToast('⚠️ Please enter a mode name.');
         return;
     }
 
-    const type = typeSelect.value || 'bank';
-    const initBal = parseAmount(balanceInput.value || 0);
-    const editId = idInput.value;
-
-    const isDuplicate = accounts.some(a => a.name.toLowerCase() === name.toLowerCase() && a.id !== editId);
-    if (isDuplicate) {
-        showToast(`⚠️ An account named "${name}" already exists.`);
-        return;
-    }
+    const type = typeSelect ? typeSelect.value : (name.toLowerCase() === 'cash' ? 'cash' : 'upi');
+    const editId = idInput?.value;
 
     if (editId) {
         const acc = accounts.find(a => a.id === editId);
@@ -3630,7 +3611,7 @@ function handleAccountFormSubmit(e) {
             const oldName = acc.name;
             acc.name = name;
             acc.type = type;
-            acc.initialBalance = initBal;
+            acc.initialBalance = 0;
             acc.color = selectedModalColor;
             acc.icon = selectedModalIcon;
 
@@ -3643,59 +3624,18 @@ function handleAccountFormSubmit(e) {
                 saveTransactionsToCache();
             }
         }
-        showToast(`Account "${name}" updated!`);
-    } else {
-        const newAcc = {
-            id: 'acc_' + Date.now(),
-            name: name,
-            type: type,
-            initialBalance: initBal,
-            color: selectedModalColor,
-            icon: selectedModalIcon,
-            isDefault: false,
-            order: accounts.length + 1
-        };
-        accounts.push(newAcc);
-        showToast(`Account "${name}" added!`);
+        showToast(`Mode "${name}" updated!`);
     }
 
     saveAccounts();
     updateAccountOptions();
     renderAccountsManagement();
-    renderDashboardAccounts();
     renderHistoryTable();
     closeAccountModal();
 }
 
 function deleteAccount(accId) {
-    const acc = accounts.find(a => a.id === accId);
-    if (!acc) return;
-
-    if (accounts.length <= 1) {
-        showToast('⚠️ You must have at least one active account.');
-        return;
-    }
-
-    const inUse = transactions.some(t =>
-        (t.Account && t.Account.toLowerCase() === acc.name.toLowerCase()) ||
-        (t.ToAccount && t.ToAccount.toLowerCase() === acc.name.toLowerCase())
-    );
-
-    if (inUse) {
-        if (!confirm(`Account "${acc.name}" has transactions linked to it. Deleting will remove it from the account list. Proceed?`)) {
-            return;
-        }
-    } else {
-        if (!confirm(`Delete account "${acc.name}"?`)) return;
-    }
-
-    accounts = accounts.filter(a => a.id !== accId);
-    saveAccounts();
-    updateAccountOptions();
-    renderAccountsManagement();
-    renderDashboardAccounts();
-    renderHistoryTable();
-    showToast(`Account "${acc.name}" deleted.`);
+    showToast('⚠️ Only Cash and UPI transaction modes are supported.');
 }
 
 // --- SHARED MODAL HELPERS (PALETTE & ICON GRID) ---

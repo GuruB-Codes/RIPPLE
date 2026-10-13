@@ -188,9 +188,6 @@
                                 <button type="button" class="mode-chip" data-mode="Cash" onclick="setTransferPaymentMode('Cash')">
                                     <i class="fa-solid fa-money-bill-wave"></i> Cash
                                 </button>
-                                <button type="button" class="mode-chip" data-mode="Bank Transfer" onclick="setTransferPaymentMode('Bank Transfer')">
-                                    <i class="fa-solid fa-building-columns"></i> Bank
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -345,11 +342,11 @@
             <div class="card history-actions">
                 <div class="search-bar">
                     <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" id="search-history" placeholder="Search notes, category, account...">
+                    <input type="text" id="search-history" placeholder="Search notes, category, mode...">
                 </div>
                 <div class="history-filters-row">
                     <select id="history-account-filter" class="history-account-filter">
-                        <option value="">All Accounts</option>
+                        <option value="">All Modes</option>
                     </select>
                     <div class="filter-month">
                         <input type="month" id="history-month-filter">
@@ -364,7 +361,7 @@
                             <tr>
                                 <th>Date</th>
                                 <th>Category</th>
-                                <th>Account</th>
+                                <th>Mode</th>
                                 <th>Notes</th>
                                 <th class="text-right">Amount</th>
                             </tr>
@@ -399,8 +396,8 @@
                 <div class="settings-menu-card" onclick="openSettingsSub('accounts')">
                     <div class="settings-menu-icon">💳</div>
                     <div class="settings-menu-info">
-                        <h3>Multiple Accounts</h3>
-                        <p>Manage bank, cash, UPI, cards & initial balances</p>
+                        <h3>Mode of Transaction</h3>
+                        <p>Manage payment modes (Cash & UPI)</p>
                     </div>
                     <div class="settings-menu-arrow"><i class="fa-solid fa-chevron-right"></i></div>
                 </div>
@@ -543,32 +540,19 @@
                 </div>
             </div>
 
-            <!-- 4. MULTIPLE ACCOUNTS SUBVIEW -->
+            <!-- 4. MODE OF TRANSACTION SUBVIEW -->
             <div id="settings-sub-accounts" class="settings-subview hidden">
                 <button class="btn-text settings-back-btn" onclick="closeSettingsSub()"><i
                         class="fa-solid fa-arrow-left"></i> Back to Settings</button>
                 <div class="card settings-card" style="margin-top: 15px;">
                     <div class="subview-header">
                         <div>
-                            <h3 class="settings-section-title" style="margin-bottom: 2px;">YOUR ACCOUNTS</h3>
-                            <p class="settings-description" style="margin-bottom: 0;">Manage bank, cash, UPI, cards & initial balances.</p>
-                        </div>
-                        <button type="button" class="btn-primary-sm" onclick="openAccountModal('add')">
-                            <i class="fa-solid fa-plus"></i> Add Account
-                        </button>
-                    </div>
-
-                    <div class="account-net-worth-card">
-                        <div class="account-net-worth-info">
-                            <span class="account-net-worth-tag">TOTAL NET WORTH</span>
-                            <h3 class="account-net-worth-title" id="total-net-balance">₹0</h3>
-                        </div>
-                        <div class="account-net-worth-icon">
-                            <i class="fa-solid fa-vault"></i>
+                            <h3 class="settings-section-title" style="margin-bottom: 2px;">MODE OF TRANSACTION</h3>
+                            <p class="settings-description" style="margin-bottom: 0;">Payment modes: Cash & UPI.</p>
                         </div>
                     </div>
 
-                    <div id="accounts-management-list" class="accounts-settings-list">
+                    <div id="accounts-management-list" class="accounts-settings-list" style="margin-top: 15px;">
                         <!-- Dynamic accounts list injected here -->
                     </div>
                 </div>
@@ -869,51 +853,36 @@
         </div>
     </div>
 
-    <!-- Account Modal -->
+    <!-- Mode of Transaction Modal -->
     <div id="account-modal" class="modal-backdrop hidden">
         <div class="modal-dialog">
             <div class="modal-header">
-                <h3 id="account-modal-title">Add Account</h3>
+                <h3 id="account-modal-title">Customize Mode</h3>
                 <button type="button" class="modal-close-btn" onclick="closeAccountModal()">&times;</button>
             </div>
             <form id="account-form" onsubmit="handleAccountFormSubmit(event)">
                 <input type="hidden" id="account-edit-id" value="">
+                <input type="hidden" id="account-balance-input" value="0">
+                <input type="hidden" id="account-type-select" value="cash">
 
                 <div class="form-group">
-                    <label for="account-name-input">Account Name</label>
-                    <input type="text" id="account-name-input" placeholder="e.g. SBI Savings, Paytm, Cash" required maxlength="25">
+                    <label for="account-name-input">Mode Name</label>
+                    <input type="text" id="account-name-input" placeholder="Cash or UPI" readonly required maxlength="25">
                 </div>
 
                 <div class="form-group">
-                    <label for="account-type-select">Account Type</label>
-                    <select id="account-type-select" required>
-                        <option value="bank">Bank Account</option>
-                        <option value="cash">Cash</option>
-                        <option value="upi">UPI</option>
-                        <option value="credit">Credit Card</option>
-                        <option value="wallet">Wallet</option>
-                        <option value="other">Other</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="account-balance-input">Initial Balance (₹)</label>
-                    <input type="number" id="account-balance-input" placeholder="0.00" step="0.01" value="0.00">
-                </div>
-
-                <div class="form-group">
-                    <label>Account Color</label>
+                    <label>Mode Color</label>
                     <div class="color-palette" id="account-color-palette">
                         <!-- Swatches injected dynamically -->
                     </div>
                     <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
-                        <input type="color" id="account-custom-color" value="#4F46E5" class="custom-color-input">
+                        <input type="color" id="account-custom-color" value="#10B981" class="custom-color-input">
                         <span style="font-size:0.8rem; color:var(--text-muted);">Custom color</span>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label>Account Icon</label>
+                    <label>Mode Icon</label>
                     <div class="icon-selector-grid" id="account-icon-grid">
                         <!-- Icons injected dynamically -->
                     </div>
@@ -922,29 +891,29 @@
                 <div class="modal-preview-box">
                     <span style="font-size:0.8rem; color:var(--text-muted);">Preview:</span>
                     <div class="account-card-preview" id="account-card-preview">
-                        <div class="acc-icon-circle" id="preview-acc-icon"><i class="fa-solid fa-building-columns"></i></div>
+                        <div class="acc-icon-circle" id="preview-acc-icon"><i class="fa-solid fa-money-bill-wave"></i></div>
                         <div>
-                            <strong id="preview-acc-name">Account Name</strong>
-                            <p id="preview-acc-type" style="font-size:0.75rem; color:var(--text-muted); margin:0;">Bank Account</p>
+                            <strong id="preview-acc-name">Cash</strong>
+                            <p id="preview-acc-type" style="font-size:0.75rem; color:var(--text-muted); margin:0;">Cash Mode</p>
                         </div>
                     </div>
                 </div>
 
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeAccountModal()">Cancel</button>
-                    <button type="submit" class="btn-primary" id="save-account-btn">Save Account</button>
+                    <button type="submit" class="btn-primary" id="save-account-btn">Save Changes</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Quick Account Picker Bottom Sheet (Docked to bottom of screen) -->
+    <!-- Quick Mode Picker Bottom Sheet (Docked to bottom of screen) -->
     <div id="keypad-account-popover" class="keypad-account-popover hidden">
         <div class="popover-backdrop" onclick="closeKeypadAccountPicker()"></div>
         <div class="popover-content">
             <div class="popover-drag-bar"></div>
             <div class="popover-header">
-                <div class="popover-title">Select Account</div>
+                <div class="popover-title">Select Mode of Transaction</div>
                 <button type="button" class="popover-close-btn" onclick="closeKeypadAccountPicker()" title="Dismiss">
                     <i class="fa-solid fa-chevron-down"></i>
                 </button>
