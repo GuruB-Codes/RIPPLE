@@ -70,20 +70,20 @@
                 </div>
             </div>
 
-            <!-- Monthly Financial Report Action Card -->
-            <div class="card monthly-report-card">
-                <div class="report-card-info">
-                    <div class="report-card-icon">
-                        <i class="fa-solid fa-file-invoice-dollar"></i>
-                    </div>
-                    <div>
-                        <h3>Monthly Financial Report</h3>
-                        <p class="text-muted" style="font-size: 0.8rem;">Generate PDF summaries & email complete financial reports</p>
+            <!-- Bank Accounts & Balances Cards Section -->
+            <div class="dashboard-accounts-section">
+                <div class="dashboard-accounts-header">
+                    <div class="accounts-header-left">
+                        <h3 class="accounts-header-title">
+                            <i class="fa-solid fa-building-columns"></i> Bank & Accounts
+                        </h3>
+                        <span class="accounts-total-pill" id="dashboard-total-net-pill">Total: ₹0</span>
                     </div>
                 </div>
-                <button class="btn-primary report-action-btn" onclick="app.navigateTo('report')">
-                    <i class="fa-solid fa-file-pdf"></i> Generate Report
-                </button>
+
+                <div id="dashboard-accounts-list" class="dashboard-accounts-grid">
+                    <!-- Bank balance cards dynamically injected here -->
+                </div>
             </div>
 
             <div class="dashboard-charts">
@@ -161,8 +161,8 @@
 
                         <!-- My Account Selector (Debited & Self) -->
                         <div id="transfer-from-account-box" class="transfer-acc-select" onclick="openKeypadAccountPicker('from')">
-                            <span class="acc-pill-icon" id="transfer-from-icon"><i class="fa-solid fa-wallet"></i></span>
-                            <span class="acc-pill-name" id="transfer-from-name">Cash</span>
+                            <span class="acc-pill-icon" id="transfer-from-icon"><i class="fa-solid fa-building-columns"></i></span>
+                            <span class="acc-pill-name" id="transfer-from-name">SBI Bank</span>
                             <i class="fa-solid fa-chevron-down" style="font-size:0.7rem; margin-left:auto;"></i>
                         </div>
 
@@ -212,7 +212,7 @@
                         <!-- My Account Selector (Credited & Self) -->
                         <div id="transfer-to-account-box" class="transfer-acc-select hidden" onclick="openKeypadAccountPicker('to')">
                             <span class="acc-pill-icon" id="transfer-to-icon"><i class="fa-solid fa-building-columns"></i></span>
-                            <span class="acc-pill-name" id="transfer-to-name">SBI Bank</span>
+                            <span class="acc-pill-name" id="transfer-to-name">Canara Bank</span>
                             <i class="fa-solid fa-chevron-down" style="font-size:0.7rem; margin-left:auto;"></i>
                         </div>
 

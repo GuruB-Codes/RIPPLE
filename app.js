@@ -74,11 +74,12 @@ const DEFAULT_CATEGORIES = {
 
 // Default Accounts Seed
 const DEFAULT_ACCOUNTS = [
-    { id: 'acc_cash', name: 'Cash', type: 'cash', initialBalance: 0, icon: 'fa-money-bill-wave', color: '#10B981', isDefault: true, order: 1 },
-    { id: 'acc_bank', name: 'Bank Account', type: 'bank', initialBalance: 0, icon: 'fa-building-columns', color: '#4F46E5', isDefault: false, order: 2 },
-    { id: 'acc_upi', name: 'UPI', type: 'upi', initialBalance: 0, icon: 'fa-mobile-screen', color: '#06B6D4', isDefault: false, order: 3 },
-    { id: 'acc_credit', name: 'Credit Card', type: 'credit', initialBalance: 0, icon: 'fa-credit-card', color: '#EC4899', isDefault: false, order: 4 },
-    { id: 'acc_wallet', name: 'Wallet', type: 'wallet', initialBalance: 0, icon: 'fa-wallet', color: '#F59E0B', isDefault: false, order: 5 }
+    { id: 'acc_sbi', name: 'SBI Bank', type: 'bank', initialBalance: 0, icon: 'fa-building-columns', color: '#1A56DB', isDefault: false, order: 1 },
+    { id: 'acc_canara', name: 'Canara Bank', type: 'bank', initialBalance: 0, icon: 'fa-building-columns', color: '#0284C7', isDefault: false, order: 2 },
+    { id: 'acc_cash', name: 'Cash', type: 'cash', initialBalance: 0, icon: 'fa-money-bill-wave', color: '#10B981', isDefault: true, order: 3 },
+    { id: 'acc_upi', name: 'UPI', type: 'upi', initialBalance: 0, icon: 'fa-mobile-screen', color: '#06B6D4', isDefault: false, order: 4 },
+    { id: 'acc_credit', name: 'Credit Card', type: 'credit', initialBalance: 0, icon: 'fa-credit-card', color: '#EC4899', isDefault: false, order: 5 },
+    { id: 'acc_wallet', name: 'Wallet', type: 'wallet', initialBalance: 0, icon: 'fa-wallet', color: '#F59E0B', isDefault: false, order: 6 }
 ];
 
 let categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
@@ -173,6 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAccounts();
     updateAccountOptions();
     updateCategoryOptions();
+    renderDashboardAccounts();
 
     // Setup event listeners
     setupNavigation();
@@ -1083,12 +1085,16 @@ function formatDateDisplay(dateStr) {
     return `${day}-${month}-${year}`;
 }
 
-// Sort transactions descending by date
+// Sort transactions descending by date (and newest row first if same date)
 function sortTransactions() {
     transactions.sort((a, b) => {
         const da = parseDate(a.Date);
         const db = parseDate(b.Date);
-        return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+        const timeDiff = (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+        if (timeDiff !== 0) return timeDiff;
+        const rowA = typeof a.rowId === 'number' ? a.rowId : (String(a.rowId).startsWith('temp_') ? Infinity : 0);
+        const rowB = typeof b.rowId === 'number' ? b.rowId : (String(b.rowId).startsWith('temp_') ? Infinity : 0);
+        return rowB - rowA;
     });
 }
 
@@ -1307,31 +1313,18 @@ async function saveTransactionToCloud(transaction) {
     const txToAccount = transaction.toAccount || '';
 
     // --- OPTIMISTIC UI UPDATE ---
-    let existingTx = null;
-    if (!isTransfer) {
-        existingTx = transactions.find(t =>
-            formatDateDisplay(t.Date).toLowerCase() === normalizedDate.toLowerCase() &&
-            String(t.Category || '').trim().toLowerCase() === String(transaction.category || '').trim().toLowerCase() &&
-            String(t.Type || '').trim().toLowerCase() === String(txType).trim().toLowerCase() &&
-            String(t.Account || 'Cash').trim().toLowerCase() === String(txAccount).trim().toLowerCase()
-        );
-    }
-
-    if (existingTx) {
-        existingTx.Amount = parseAmount(existingTx.Amount) + txAmount;
-    } else {
-        transactions.unshift({
-            rowId: 'temp_' + Date.now(),
-            Date: normalizedDate,
-            Category: isTransfer ? 'Transfer' : transaction.category,
-            Amount: txAmount,
-            Type: txType,
-            Notes: transaction.notes || '',
-            Account: txAccount,
-            ToAccount: txToAccount
-        });
-        sortTransactions();
-    }
+    // Always add every transaction as a separate, distinct record
+    transactions.unshift({
+        rowId: 'temp_' + Date.now(),
+        Date: normalizedDate,
+        Category: isTransfer ? 'Transfer' : transaction.category,
+        Amount: txAmount,
+        Type: txType,
+        Notes: transaction.notes || '',
+        Account: txAccount,
+        ToAccount: txToAccount
+    });
+    sortTransactions();
 
     saveTransactionsToCache();
     updateDashboard();
@@ -3165,9 +3158,37 @@ function loadAccounts() {
     try {
         const cached = localStorage.getItem(CACHE_ACCOUNTS_KEY);
         if (cached) {
-            const parsed = JSON.parse(cached);
+            let parsed = JSON.parse(cached);
             if (Array.isArray(parsed) && parsed.length > 0) {
+                // Ensure SBI Bank and Canara Bank exist for the user
+                const hasSbi = parsed.some(a => a.name.toLowerCase().includes('sbi'));
+                const hasCanara = parsed.some(a => a.name.toLowerCase().includes('canara'));
+                let updated = false;
+
+                if (!hasSbi && !hasCanara) {
+                    const bankIdx = parsed.findIndex(a => a.name === 'Bank Account');
+                    if (bankIdx !== -1) {
+                        parsed[bankIdx] = { id: 'acc_sbi', name: 'SBI Bank', type: 'bank', initialBalance: parsed[bankIdx].initialBalance || 0, icon: 'fa-building-columns', color: '#1A56DB', isDefault: false, order: 1 };
+                        parsed.splice(bankIdx + 1, 0, { id: 'acc_canara', name: 'Canara Bank', type: 'bank', initialBalance: 0, icon: 'fa-building-columns', color: '#0284C7', isDefault: false, order: 2 });
+                    } else {
+                        parsed.unshift(
+                            { id: 'acc_sbi', name: 'SBI Bank', type: 'bank', initialBalance: 0, icon: 'fa-building-columns', color: '#1A56DB', isDefault: false, order: 1 },
+                            { id: 'acc_canara', name: 'Canara Bank', type: 'bank', initialBalance: 0, icon: 'fa-building-columns', color: '#0284C7', isDefault: false, order: 2 }
+                        );
+                    }
+                    updated = true;
+                } else if (!hasCanara) {
+                    parsed.splice(1, 0, { id: 'acc_canara', name: 'Canara Bank', type: 'bank', initialBalance: 0, icon: 'fa-building-columns', color: '#0284C7', isDefault: false, order: 2 });
+                    updated = true;
+                } else if (!hasSbi) {
+                    parsed.unshift({ id: 'acc_sbi', name: 'SBI Bank', type: 'bank', initialBalance: 0, icon: 'fa-building-columns', color: '#1A56DB', isDefault: false, order: 1 });
+                    updated = true;
+                }
+
                 accounts = parsed;
+                if (updated) {
+                    saveAccounts();
+                }
                 return;
             }
         }
@@ -3201,8 +3222,16 @@ function calculateAccountBalances() {
     transactions.forEach(t => {
         const amt = parseAmount(t.Amount);
         const classification = getTransactionClassification(t);
-        const acc = t.Account || 'Cash';
-        const toAcc = t.ToAccount || '';
+        let acc = t.Account || 'Cash';
+        let toAcc = t.ToAccount || '';
+
+        // Backward compatibility: If transaction was labeled 'Bank Account' and SBI Bank exists
+        if (acc === 'Bank Account' && balances['Bank Account'] === undefined && balances['SBI Bank'] !== undefined) {
+            acc = 'SBI Bank';
+        }
+        if (toAcc === 'Bank Account' && balances['Bank Account'] === undefined && balances['SBI Bank'] !== undefined) {
+            toAcc = 'SBI Bank';
+        }
 
         if (classification === 'Income') {
             if (toAcc && balances[toAcc] !== undefined) {
@@ -3227,9 +3256,20 @@ function calculateAccountBalances() {
     return balances;
 }
 
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function renderDashboardAccounts() {
     const balances = calculateAccountBalances();
     const totalEl = document.getElementById('total-net-balance');
+    const totalPillEl = document.getElementById('dashboard-total-net-pill');
     const listEl = document.getElementById('dashboard-accounts-list');
 
     let totalNet = 0;
@@ -3237,37 +3277,68 @@ function renderDashboardAccounts() {
         totalNet += (balances[acc.name] || 0);
     });
 
+    const formattedTotal = `₹${totalNet.toLocaleString('en-IN')}`;
+
     if (totalEl) {
-        totalEl.textContent = `₹${totalNet.toLocaleString('en-IN')}`;
+        totalEl.textContent = formattedTotal;
+    }
+    if (totalPillEl) {
+        totalPillEl.textContent = `Total: ${formattedTotal}`;
     }
 
     if (listEl) {
         listEl.innerHTML = '';
         if (accounts.length === 0) {
-            listEl.innerHTML = '<p class="text-muted" style="font-size:0.85rem; padding:8px;">No accounts found. Click Manage to add one.</p>';
+            listEl.innerHTML = `
+                <div class="bank-accounts-empty">
+                    <p class="text-muted" style="font-size:0.85rem; margin:0;">No accounts found.</p>
+                    <button type="button" class="btn-primary-sm" onclick="openAccountModal('add')">
+                        <i class="fa-solid fa-plus"></i> Add Account
+                    </button>
+                </div>
+            `;
             return;
         }
+
+        const typeLabels = {
+            bank: 'Bank Account',
+            cash: 'Cash In Hand',
+            upi: 'UPI',
+            credit: 'Credit Card',
+            wallet: 'Wallet',
+            other: 'Account'
+        };
 
         accounts.forEach(acc => {
             const bal = balances[acc.name] || 0;
             const isNegative = bal < 0;
-            const chip = document.createElement('div');
-            chip.className = 'account-card-chip';
-            chip.onclick = () => filterByAccountAndGoToHistory(acc.name);
-            chip.title = `Click to filter history for ${acc.name}`;
+            const card = document.createElement('div');
+            card.className = 'bank-balance-card';
+            card.style.setProperty('--acc-theme', acc.color || '#4F46E5');
+            card.onclick = () => filterByAccountAndGoToHistory(acc.name);
+            card.title = `Click to view statement for ${acc.name}`;
 
-            chip.innerHTML = `
-                <div class="account-chip-icon" style="background-color: ${acc.color || '#4F46E5'};">
-                    <i class="fa-solid ${acc.icon || 'fa-wallet'}"></i>
-                </div>
-                <div class="account-chip-info">
-                    <div class="account-chip-name">${acc.name}</div>
-                    <div class="account-chip-balance ${isNegative ? 'account-chip-negative' : ''}">
-                        ₹${bal.toLocaleString('en-IN')}
+            const typeLabel = typeLabels[acc.type] || (acc.type ? acc.type.toUpperCase() : 'Account');
+            const themeColor = acc.color || '#4F46E5';
+
+            card.innerHTML = `
+                <div class="bank-card-accent-bar" style="background-color: ${themeColor};"></div>
+                <div class="bank-card-content">
+                    <div class="bank-card-header">
+                        <div class="bank-card-icon-wrap" style="background-color: ${themeColor}1a; color: ${themeColor};">
+                            <i class="fa-solid ${acc.icon || 'fa-building-columns'}"></i>
+                        </div>
+                        <span class="bank-card-title" title="${escapeHtml(acc.name)}">${escapeHtml(acc.name)}</span>
+                    </div>
+                    <div class="bank-card-bal-wrap">
+                        <span class="bank-card-bal-label">Available Balance</span>
+                        <div class="bank-card-amount ${isNegative ? 'negative-balance' : ''}">
+                            ₹${bal.toLocaleString('en-IN')}
+                        </div>
                     </div>
                 </div>
             `;
-            listEl.appendChild(chip);
+            listEl.appendChild(card);
         });
     }
 }

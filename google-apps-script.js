@@ -190,44 +190,9 @@ function doPost(e) {
       return d;
     })(rawDate);
 
-    const rows = sheet.getDataRange().getValues();
-    let existingRow = -1;
-
-    // NEVER combine transfer transactions: each transfer to/from a person or account is a distinct transaction
-    const isTransferTx = String(type).trim().toLowerCase() === 'transfer' || String(category).trim().toLowerCase() === 'transfer';
-
-    if (!isTransferTx) {
-      for (let i = 1; i < rows.length; i++) {
-        let rDate = rows[i][0];
-        if (rDate instanceof Date) {
-          rDate = Utilities.formatDate(rDate, Session.getScriptTimeZone(), 'dd-MMM-yyyy');
-        }
-        const rowDate = String(rDate).trim().toLowerCase();
-        const rowCategory = String(rows[i][1]).trim().toLowerCase();
-        const rowType = String(rows[i][3]).trim().toLowerCase();
-        const rowAccount = String(rows[i][5] || 'Cash').trim().toLowerCase();
-
-        if (
-          rowDate === String(txDate).trim().toLowerCase() &&
-          rowCategory === String(category).trim().toLowerCase() &&
-          rowType === String(type).trim().toLowerCase() &&
-          rowAccount === String(account).trim().toLowerCase()
-        ) {
-          existingRow = i + 1;
-          break;
-        }
-      }
-    }
-
-    if (existingRow > 0) {
-      const currentAmount = parseFloat(sheet.getRange(existingRow, 3).getValue()) || 0;
-      // Preserve existing notes; do not modify the Notes column
-      sheet.getRange(existingRow, 3).setValue(currentAmount + amount);
-      Logger.log('Updated existing row #' + existingRow + ' amount to ' + (currentAmount + amount));
-    } else {
-      sheet.appendRow([txDate, category, amount, type, notes, account, toAccount]);
-      Logger.log('Appended new row: ' + [txDate, category, amount, type, notes, account, toAccount]);
-    }
+    // Always append every transaction as a separate, distinct record
+    sheet.appendRow([txDate, category, amount, type, notes, account, toAccount]);
+    Logger.log('Appended new transaction row: ' + [txDate, category, amount, type, notes, account, toAccount]);
 
     return ContentService
       .createTextOutput(JSON.stringify({
