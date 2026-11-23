@@ -1450,106 +1450,201 @@ body.dark-mode .report-status.error {
     font-size: 1.15rem;
 }
 
-/* 2. Accounts Summary on Dashboard (if shown) */
-.accounts-summary-card {
-    background: linear-gradient(135deg, rgba(79, 70, 229, 0.06), rgba(16, 185, 129, 0.06));
-    border: 1px solid rgba(99, 102, 241, 0.2);
-    padding: 18px;
-    margin-bottom: 20px;
+/* 2. Dashboard Bank Accounts & Balances Cards */
+.dashboard-accounts-section {
+    margin: 8px 0 24px 0;
 }
 
-.accounts-summary-header {
+.dashboard-accounts-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 12px;
+    padding: 0 2px;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
-.accounts-section-tag {
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 1px;
-    color: var(--secondary-color);
-    text-transform: uppercase;
+.accounts-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
-.accounts-net-title {
-    font-size: 1.5rem;
+.accounts-header-title {
+    font-size: 1.05rem;
     font-weight: 700;
     color: var(--text-main);
-    margin-top: 2px;
-}
-
-.accounts-horizontal-scroll {
     display: flex;
-    gap: 12px;
-    overflow-x: auto;
-    padding: 6px 2px 8px 2px;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    letter-spacing: -0.2px;
 }
 
-.accounts-horizontal-scroll::-webkit-scrollbar {
-    display: none;
+.accounts-header-title i {
+    color: var(--secondary-color);
 }
 
-.account-card-chip {
-    min-width: 160px;
-    max-width: 200px;
-    padding: 12px 14px;
-    background-color: var(--card-bg);
+.accounts-total-pill {
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--secondary-color);
+    border-radius: var(--radius-full);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.dashboard-accounts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 14px;
+}
+
+.bank-balance-card {
+    background: var(--card-bg);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+    position: relative;
+    user-select: none;
+}
+
+.bank-balance-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    border-color: rgba(99, 102, 241, 0.35);
+}
+
+.bank-card-accent-bar {
+    height: 4px;
+    width: 100%;
+}
+
+.bank-card-content {
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.bank-card-header {
     display: flex;
     align-items: center;
     gap: 12px;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: var(--transition);
-    box-shadow: var(--shadow-sm);
+    margin-bottom: 14px;
 }
 
-.account-card-chip:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-    border-color: var(--secondary-color);
-}
-
-.account-chip-icon {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
+.bank-card-icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
-    font-size: 1rem;
+    font-size: 1.15rem;
     flex-shrink: 0;
 }
 
-.account-chip-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.account-chip-name {
-    font-size: 0.8rem;
-    font-weight: 500;
-    color: var(--text-muted);
+.bank-card-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-main);
+    letter-spacing: -0.2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex: 1;
 }
 
-.account-chip-balance {
-    font-size: 0.95rem;
-    font-weight: 700;
+.bank-card-bal-wrap {
+    margin-bottom: 0;
+}
+
+.bank-card-bal-label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.bank-card-amount {
+    font-size: 1.35rem;
+    font-weight: 800;
     color: var(--text-main);
-    margin-top: 2px;
+    line-height: 1.25;
+    margin-top: 3px;
+    font-family: 'Poppins', sans-serif;
 }
 
-.account-chip-negative {
+.bank-card-amount.negative-balance {
     color: var(--expense-color) !important;
+}
+
+.bank-accounts-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 24px;
+    background: var(--card-bg);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Dark Mode Overrides for Bank Balance Cards */
+body.dark-mode .bank-balance-card {
+    background: #1E293B;
+    border-color: #334155;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .bank-balance-card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    border-color: rgba(129, 140, 248, 0.45);
+}
+
+body.dark-mode .accounts-total-pill {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: rgba(99, 102, 241, 0.35);
+    color: #A5B4FC;
+}
+
+@media (max-width: 480px) {
+    .dashboard-accounts-grid {
+        grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+        gap: 10px;
+    }
+
+    .bank-card-content {
+        padding: 12px 14px 10px 14px;
+    }
+
+    .bank-card-title {
+        font-size: 0.95rem;
+    }
+
+    .bank-card-amount {
+        font-size: 1.15rem;
+    }
+
+    .bank-card-icon-wrap {
+        width: 34px;
+        height: 34px;
+        font-size: 0.95rem;
+        border-radius: 10px;
+    }
 }
 
 /* 2. Subviews Header & Small Primary Buttons */
